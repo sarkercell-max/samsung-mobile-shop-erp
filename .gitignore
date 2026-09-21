@@ -9,3 +9,6 @@ dist
 .DS_Store
 .vercel
 prisma/generated
+# PWA generated service worker
+/public/sw.js
+/public/workbox-*.js
