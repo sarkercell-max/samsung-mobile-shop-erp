@@ -9,6 +9,7 @@ import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { LedgerReport } from "@/components/shared/ledger-report";
 
 interface ReportsTabsProps {
   data: {
@@ -20,6 +21,9 @@ interface ReportsTabsProps {
     customerReport: any[];
     lowStock: any[];
     deadStock: any[];
+    transactions: any;
+    suppliers: { id: string; name: string }[];
+    customers: { id: string; name: string }[];
   };
 }
 
@@ -77,6 +81,8 @@ export function ReportsTabs({ data }: ReportsTabsProps) {
         <TabsTrigger value="promo">Promo</TabsTrigger>
         <TabsTrigger value="customers">Customers</TabsTrigger>
         <TabsTrigger value="stock">Low / Dead Stock</TabsTrigger>
+        <TabsTrigger value="transactions">Transactions</TabsTrigger>
+        <TabsTrigger value="ledger">Ledger</TabsTrigger>
       </TabsList>
 
       <TabsContent value="daily">
@@ -197,6 +203,17 @@ export function ReportsTabs({ data }: ReportsTabsProps) {
           {data.deadStock.length === 0 && <p className="text-sm text-muted-foreground">No dead stock detected.</p>}
         </div>
       </TabsContent>
+
+      <TabsContent value="transactions">
+        <div className="space-y-4">
+          <section><h3 className="mb-2 font-semibold">Purchases</h3>{data.transactions.purchases.map((p:any)=><Card key={p.id}><CardContent className="flex justify-between p-3"><span>{formatDate(p.purchaseDate)} · {p.purchaseNumber} · {p.supplierName}</span><b>{formatCurrency(p.total)}</b></CardContent></Card>)}{!data.transactions.purchases.length&&<p className="text-sm text-muted-foreground">No purchases for this period.</p>}</section>
+          <section><h3 className="mb-2 font-semibold">Expenses</h3>{data.transactions.expenses.map((e:any)=><Card key={e.id}><CardContent className="flex justify-between p-3"><span>{formatDate(e.expenseDate)} · {e.category} · {e.description}</span><b>{formatCurrency(Number(e.amount))}</b></CardContent></Card>)}</section>
+          <section><h3 className="mb-2 font-semibold">Supplier Payments</h3>{data.transactions.supplierPayments.map((p:any)=><Card key={p.id}><CardContent className="flex justify-between p-3"><span>{formatDate(p.paymentDate)} · {p.supplier.name} · {p.paymentMethod}</span><b>{formatCurrency(Number(p.amount))}</b></CardContent></Card>)}</section>
+          <section><h3 className="mb-2 font-semibold">Customer Payments</h3>{data.transactions.customerPayments.map((p:any)=><Card key={p.id}><CardContent className="flex justify-between p-3"><span>{formatDate(p.createdAt)} · {p.sale.customer.name} · {p.method}</span><b>{formatCurrency(Number(p.amount))}</b></CardContent></Card>)}</section>
+          <section><h3 className="mb-2 font-semibold">Inventory Received</h3>{data.transactions.inventoryMovements.map((i:any)=><Card key={i.id}><CardContent className="flex justify-between p-3"><span>{formatDate(i.createdAt)} · {i.product.model} · {i.purchaseItem.purchaseBatch.purchaseNumber}</span><span>{i.status}</span></CardContent></Card>)}</section>
+        </div>
+      </TabsContent>
+      <TabsContent value="ledger"><LedgerReport suppliers={data.suppliers} customers={data.customers} /></TabsContent>
     </Tabs>
   );
 }

@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, ShoppingCart, Package, Smartphone, Gift, Users,
-  ReceiptText, BarChart3, Wallet, UserCog, Settings, Store,
+  ReceiptText, BarChart3, Wallet, UserCog, Settings, Store, Truck,
 } from "lucide-react";
 
 const OWNER_NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/purchase", label: "Purchase", icon: ShoppingCart },
+  { href: "/suppliers", label: "Suppliers", icon: Truck },
   { href: "/inventory", label: "Inventory", icon: Package },
   { href: "/products", label: "Products", icon: Smartphone },
   { href: "/promotions", label: "Promotions", icon: Gift },

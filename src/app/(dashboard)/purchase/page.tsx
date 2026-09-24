@@ -22,7 +22,7 @@ export default async function PurchasePage() {
           const soldCount = b.items.filter((i) => i.inventory?.status === "SOLD").length;
           const canCancel = b.status === "RECEIVED" && b.items.every((i) => i.inventory?.status === "AVAILABLE");
           return (
-            <Card key={b.id}>
+            <Card key={b.id} id={b.id}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">

@@ -145,6 +145,11 @@ export async function getDailySalesReport(date: Date) {
   });
 }
 
+export async function getSalesRangeReport(from: Date, to: Date) {
+  const user = await requireOwner();
+  return prisma.sale.findMany({ where: { storeId: user.storeId, deletedAt: null, createdAt: { gte: from, lte: to } }, include: { customer: true, soldBy: true, items: { include: { product: true } }, payments: true }, orderBy: { createdAt: "desc" } });
+}
+
 export async function getProfitReport(from: Date, to: Date) {
   const user = await requireOwner();
   const sales = await prisma.sale.findMany({
@@ -222,4 +227,33 @@ export async function getCustomerReport() {
       orderCount: c.sales.length,
     }))
     .sort((a, b) => b.totalSpent - a.totalSpent);
+}
+
+export async function getTransactionReports(from: Date, to: Date) {
+  const user = await requireOwner();
+  const [purchases, expenses, supplierPayments, customerPayments, inventoryMovements] = await Promise.all([
+    prisma.purchaseBatch.findMany({ where: { storeId: user.storeId, status: "RECEIVED", purchaseDate: { gte: from, lte: to } }, include: { items: true }, orderBy: { purchaseDate: "desc" } }),
+    prisma.expense.findMany({ where: { storeId: user.storeId, expenseDate: { gte: from, lte: to } }, orderBy: { expenseDate: "desc" } }),
+    prisma.supplierPayment.findMany({ where: { storeId: user.storeId, paymentDate: { gte: from, lte: to } }, include: { supplier: true }, orderBy: { paymentDate: "desc" } }),
+    prisma.payment.findMany({ where: { sale: { storeId: user.storeId, deletedAt: null, createdAt: { gte: from, lte: to } } }, include: { sale: { include: { customer: true } } }, orderBy: { createdAt: "desc" } }),
+    prisma.inventory.findMany({ where: { storeId: user.storeId, createdAt: { gte: from, lte: to } }, include: { product: true, purchaseItem: { include: { purchaseBatch: true } } }, orderBy: { createdAt: "desc" } }),
+  ]);
+  return { purchases: purchases.map(p => ({ ...p, total: p.items.reduce((s, i) => s + Number(i.buyingPrice), 0) })), expenses, supplierPayments, customerPayments, inventoryMovements };
+}
+
+export async function getCustomerLedger(customerId: string, from: Date, to: Date) {
+  const user = await requireOwner();
+  const customer = await prisma.customer.findFirst({ where: { id: customerId, storeId: user.storeId } });
+  if (!customer) return null;
+  const [priorSales, priorPayments, sales, payments] = await Promise.all([
+    prisma.sale.aggregate({ where: { storeId: user.storeId, customerId, deletedAt: null, createdAt: { lt: from } }, _sum: { total: true } }),
+    prisma.payment.aggregate({ where: { sale: { storeId: user.storeId, customerId, deletedAt: null, createdAt: { lt: from } } }, _sum: { amount: true } }),
+    prisma.sale.findMany({ where: { storeId: user.storeId, customerId, deletedAt: null, createdAt: { gte: from, lte: to } }, select: { id: true, createdAt: true, invoiceNumber: true, total: true, payments: true }, orderBy: { createdAt: "asc" } }),
+    prisma.payment.findMany({ where: { sale: { storeId: user.storeId, customerId, deletedAt: null, createdAt: { gte: from, lte: to } } }, include: { sale: true }, orderBy: { createdAt: "asc" } }),
+  ]);
+  const openingBalance = Number(priorSales._sum.total ?? 0) - Number(priorPayments._sum.amount ?? 0);
+  const rows = [...sales.map(s => ({ date: s.createdAt, description: `Sale — ${s.invoiceNumber}`, debit: Number(s.total), credit: 0 })), ...payments.map(p => ({ date: p.createdAt, description: `Payment — ${p.method} — ${p.sale.invoiceNumber}`, debit: 0, credit: Number(p.amount) }))].sort((a,b)=>a.date.getTime()-b.date.getTime());
+  let balance = openingBalance;
+  const entries = rows.map(row => { balance += row.debit - row.credit; return { ...row, balance }; });
+  return { customer, openingBalance, entries, totalDebit: entries.reduce((s,r)=>s+r.debit,0), totalCredit: entries.reduce((s,r)=>s+r.credit,0), closingBalance: balance };
 }

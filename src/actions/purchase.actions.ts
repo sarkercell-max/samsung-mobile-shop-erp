@@ -49,11 +49,18 @@ export async function createPurchaseBatch(input: CreatePurchaseBatchInput) {
         `;
         const purchaseNumber = numberResult[0]!.next_purchase_number;
 
+        const supplier = await tx.supplier.upsert({
+          where: { storeId_name: { storeId: user.storeId, name: data.supplierName.trim() } },
+          create: { storeId: user.storeId, name: data.supplierName.trim() },
+          update: {},
+        });
+
         const batch = await tx.purchaseBatch.create({
           data: {
             storeId: user.storeId,
             purchaseNumber,
-            supplierName: data.supplierName,
+            supplierName: supplier.name,
+            supplierId: supplier.id,
             batchNumber: data.batchNumber,
             purchaseDate: data.purchaseDate,
             remarks: data.remarks,
@@ -102,6 +109,7 @@ export async function createPurchaseBatch(input: CreatePurchaseBatchInput) {
     );
 
     revalidatePath("/purchase");
+    revalidatePath("/suppliers");
     revalidatePath("/inventory");
     revalidatePath("/dashboard");
     return { ok: true as const, data: result.batch, inventoryCreated: result.inventoryCount };
