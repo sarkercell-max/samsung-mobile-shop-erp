@@ -10,8 +10,8 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
 type Party={id:string;name:string};
-export function LedgerReport({ suppliers, customers }: { suppliers:Party[]; customers:Party[] }) {
- const [kind,setKind]=useState("supplier"),[id,setId]=useState(""),[from,setFrom]=useState(new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().slice(0,10)),[to,setTo]=useState(new Date().toISOString().slice(0,10)),[ledger,setLedger]=useState<any>(null),[busy,setBusy]=useState(false);
+export function LedgerReport({ suppliers, customers, initialFrom, initialTo }: { suppliers:Party[]; customers:Party[]; initialFrom?:string; initialTo?:string }) {
+ const [kind,setKind]=useState("supplier"),[id,setId]=useState(""),[from,setFrom]=useState(initialFrom??new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().slice(0,10)),[to,setTo]=useState(initialTo??new Date().toISOString().slice(0,10)),[ledger,setLedger]=useState<any>(null),[busy,setBusy]=useState(false);
  async function load(){if(!id)return;setBusy(true);const f=new Date(`${from}T00:00:00`),t=new Date(`${to}T23:59:59.999`);setLedger(kind==="supplier"?await getSupplierLedger(id,f,t):await getCustomerLedger(id,f,t));setBusy(false)}
  const entries=ledger?.entries??[];
  function exportLedger(format:"csv"|"xlsx") { if(!ledger)return; const rows=[{Date:from,Description:"Opening Balance",Debit:"",Credit:"",Balance:ledger.openingBalance},...entries.map((r:any)=>({Date:formatDate(r.date),Description:r.description,Debit:r.debit||"",Credit:r.credit||"",Balance:r.balance}))]; const ws=XLSX.utils.json_to_sheet(rows); if(format==="xlsx"){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Ledger");XLSX.writeFile(wb,"ledger.xlsx");}else{const blob=new Blob([XLSX.utils.sheet_to_csv(ws)],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ledger.csv";a.click();URL.revokeObjectURL(url);} }

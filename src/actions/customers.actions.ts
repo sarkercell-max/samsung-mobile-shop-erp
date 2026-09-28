@@ -37,19 +37,12 @@ export async function listCustomers(query?: string) {
 }
 
 /**
- * Archive (soft-delete) a customer — Owner-only, and only permitted when
- * the customer has zero sales history, since sales.customerId would
- * otherwise point at a vanished/inconsistent record.
+ * Archive a customer without removing sales, payments, or ledger history.
  */
 export async function archiveCustomer(customerId: string) {
   const user = await requireOwner();
   const customer = await prisma.customer.findFirst({ where: { id: customerId, storeId: user.storeId } });
   if (!customer) return { ok: false as const, error: "Customer not found." };
-
-  const saleCount = await prisma.sale.count({ where: { customerId } });
-  if (saleCount > 0) {
-    return { ok: false as const, error: `This customer has ${saleCount} sale(s) on record and cannot be deleted.` };
-  }
 
   await prisma.$transaction(async (tx) => {
     await tx.customer.update({ where: { id: customerId }, data: { deletedAt: new Date() } });

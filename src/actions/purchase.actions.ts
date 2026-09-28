@@ -87,6 +87,8 @@ export async function createPurchaseBatch(input: CreatePurchaseBatchInput) {
             },
           });
           createdInventoryIds.push(inventoryRow.id);
+          const previousStock = await tx.inventory.count({ where: { storeId: user.storeId, productId: item.productId, status: "AVAILABLE" } });
+          await tx.stockMovement.create({ data: { storeId: user.storeId, productId: item.productId, inventoryId: inventoryRow.id, movementType: "PURCHASE", quantity: 1, previousStock: previousStock - 1, newStock: previousStock, referenceType: "PurchaseBatch", referenceId: batch.id, batchId: batch.id, createdById: user.id } });
         }
 
         if (createdInventoryIds.length !== data.items.length) {
@@ -156,6 +158,12 @@ export async function cancelPurchaseBatch(input: CancelPurchaseBatchInput) {
       where: { id: batch.id },
       data: { status: "CANCELLED", cancelledAt: new Date(), cancelledById: user.id, cancelReason: reason },
     });
+    const remainingByProduct = new Map<string, number>();
+    for (const unit of inventoryUnits.filter((u) => u.status === "AVAILABLE")) {
+      const previousStock = remainingByProduct.get(unit.productId) ?? await tx.inventory.count({ where: { storeId: user.storeId, productId: unit.productId, status: "AVAILABLE" } });
+      remainingByProduct.set(unit.productId, previousStock - 1);
+      await tx.stockMovement.create({ data: { storeId: user.storeId, productId: unit.productId, inventoryId: unit.id, movementType: "PURCHASE_RETURN", quantity: -1, previousStock, newStock: previousStock - 1, referenceType: "PurchaseBatch", referenceId: batch.id, batchId: batch.id, reason, createdById: user.id } });
+    }
     await tx.inventory.updateMany({
       where: { id: { in: inventoryUnits.map((u) => u.id) } },
       data: { status: InventoryStatus.CANCELLED },

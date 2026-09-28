@@ -267,11 +267,14 @@ export async function createSale(input: CreateSaleInput) {
       include: { items: true, payments: true, customer: true },
     });
 
-    // 5. Flip inventory status (also enforced by DB trigger as a safety net)
-    await tx.inventory.updateMany({
-      where: { id: { in: inventoryRows.map((r) => r.id) } },
-      data: { status: InventoryStatus.SOLD },
-    });
+    // 5. Record sequential stock levels and flip inventory status.
+    const availableByProduct = new Map<string, number>();
+    for (const row of inventoryRows) {
+      const current = availableByProduct.get(row.productId) ?? await tx.inventory.count({ where: { storeId: user.storeId, productId: row.productId, status: "AVAILABLE" } });
+      availableByProduct.set(row.productId, current - 1);
+      await tx.stockMovement.create({ data: { storeId: user.storeId, productId: row.productId, inventoryId: row.id, movementType: "SALE", quantity: -1, previousStock: current, newStock: current - 1, referenceType: "Sale", referenceId: sale.id, batchId: (await tx.purchaseItem.findUnique({ where: { id: row.purchaseItemId }, select: { purchaseBatchId: true } }))?.purchaseBatchId, createdById: user.id } });
+    }
+    await tx.inventory.updateMany({ where: { id: { in: inventoryRows.map((r) => r.id) } }, data: { status: InventoryStatus.SOLD } });
 
     // 6. Audit log
     await tx.auditLog.create({
@@ -304,9 +307,16 @@ export async function voidSale(saleId: string) {
   }
 
   await prisma.$transaction(async (tx) => {
-    const sale = await tx.sale.findFirstOrThrow({ where: { id: saleId, storeId: user.storeId }, include: { items: true } });
+    const sale = await tx.sale.findFirstOrThrow({ where: { id: saleId, storeId: user.storeId }, include: { items: { include: { inventory: true } } } });
+    if (sale.status === "CANCELLED") throw new Error("This sale is already cancelled.");
 
     await tx.sale.update({ where: { id: sale.id }, data: { deletedAt: new Date(), status: "CANCELLED" } });
+    const availableByProduct = new Map<string, number>();
+    for (const item of sale.items) {
+      const current = availableByProduct.get(item.inventory.productId) ?? await tx.inventory.count({ where: { storeId: user.storeId, productId: item.inventory.productId, status: "AVAILABLE" } });
+      availableByProduct.set(item.inventory.productId, current + 1);
+      await tx.stockMovement.create({ data: { storeId: user.storeId, productId: item.inventory.productId, inventoryId: item.inventoryId, movementType: "SALE_RETURN", quantity: 1, previousStock: current, newStock: current + 1, referenceType: "Sale", referenceId: sale.id, reason: "Sale cancelled", createdById: user.id } });
+    }
     await tx.inventory.updateMany({
       where: { id: { in: sale.items.map((i) => i.inventoryId) } },
       data: { status: InventoryStatus.AVAILABLE },
@@ -318,6 +328,7 @@ export async function voidSale(saleId: string) {
 
   revalidatePath("/sales");
   revalidatePath("/dashboard");
+  revalidatePath("/inventory");
   return { ok: true as const };
 }
 

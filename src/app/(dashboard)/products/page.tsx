@@ -6,15 +6,19 @@ import { formatCurrency } from "@/lib/utils";
 import { Plus, Tag } from "lucide-react";
 import Link from "next/link";
 import { ProductActions } from "@/components/shared/product-actions";
+import { getCurrentUser } from "@/lib/auth";
 
-export default async function ProductsPage() {
-  const products = await listProducts();
+export default async function ProductsPage({ searchParams }: { searchParams: Promise<{ showArchived?: string }> }) {
+  const params = await searchParams;
+  const user = await getCurrentUser();
+  const showArchived = user.role === "OWNER" && params.showArchived === "true";
+  const products = await listProducts(showArchived);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Products</h1>
-        <Button asChild size="sm"><Link href="/products/new"><Plus className="mr-1 h-4 w-4" /> Add Product</Link></Button>
+        <div className="flex gap-2">{user.role === "OWNER" && <Button asChild size="sm" variant="outline"><Link href={showArchived ? "/products" : "/products?showArchived=true"}>{showArchived ? "Hide archived" : "Show archived"}</Link></Button>}<Button asChild size="sm"><Link href="/products/new"><Plus className="mr-1 h-4 w-4" /> Add Product</Link></Button></div>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {products.map((p) => (

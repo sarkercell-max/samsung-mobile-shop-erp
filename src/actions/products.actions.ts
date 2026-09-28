@@ -49,9 +49,10 @@ export async function createProduct(input: CreateProductInput) {
 // it used to be. Do not reintroduce a raw `product.update({ defaultSellingPrice })`
 // path outside of that action.
 
-export async function listProducts() {
+export async function listProducts(includeArchived = false) {
   const user = await getCurrentUser();
-  return prisma.product.findMany({ where: { storeId: user.storeId, deletedAt: null }, orderBy: { model: "asc" } });
+  if (includeArchived && user.role !== "OWNER") throw new Error("Only the Owner can show archived products.");
+  return prisma.product.findMany({ where: { storeId: user.storeId, deletedAt: null, ...(includeArchived ? {} : { isActive: true }) }, orderBy: { model: "asc" } });
 }
 
 /** Soft-archive: hides the product from active pickers without touching

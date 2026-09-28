@@ -92,6 +92,50 @@ export async function getOwnerDashboardStats() {
   };
 }
 
+/** Stock analytics use the existing IMEI inventory as the current balance,
+ * purchaseBatch.purchaseDate for receipts, and Sale.createdAt as the sale
+ * date (the schema has no separate saleDate). All queries are store scoped. */
+export async function getStockAnalytics(options?: { from?: string; to?: string }) {
+  const user = await requireOwner();
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayEnd = new Date(todayStart.getFullYear(), todayStart.getMonth(), todayStart.getDate() + 1);
+  const chosenFrom = options?.from ? new Date(`${options.from}T00:00:00`) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 13);
+  const chosenToExclusive = options?.to ? new Date(new Date(`${options.to}T00:00:00`).getTime() + 24 * 60 * 60 * 1000) : todayEnd;
+  if (!Number.isFinite(chosenFrom.getTime()) || !Number.isFinite(chosenToExclusive.getTime()) || chosenFrom >= chosenToExclusive) {
+    throw new Error("Invalid stock report date range.");
+  }
+  const batchScope = { storeId: user.storeId, status: "RECEIVED" as const };
+  const saleScope = { storeId: user.storeId, deletedAt: null };
+  type DailyTotal = { day: Date; quantity: number; cost: number };
+  const [current, purchases, sales, purchaseBaseline, salesBaseline, todayPurchase, todaySold] = await Promise.all([
+    prisma.inventory.aggregate({ where: { storeId: user.storeId, status: "AVAILABLE" }, _count: { _all: true }, _sum: { buyingPrice: true } }),
+    prisma.$queryRaw<DailyTotal[]>`SELECT date_trunc('day', pb."purchaseDate") AS day, COALESCE(SUM(pi.quantity), 0)::int AS quantity, COALESCE(SUM(pi."buyingPrice"), 0)::float8 AS cost FROM purchase_items pi JOIN purchase_batches pb ON pb.id = pi."purchaseBatchId" WHERE pb."storeId" = ${user.storeId} AND pb.status = 'RECEIVED' AND pb."purchaseDate" >= ${chosenFrom} AND pb."purchaseDate" < ${chosenToExclusive} GROUP BY 1 ORDER BY 1`,
+    prisma.$queryRaw<DailyTotal[]>`SELECT date_trunc('day', s."createdAt") AS day, COUNT(si.id)::int AS quantity, COALESCE(SUM(si."buyingPrice"), 0)::float8 AS cost FROM sale_items si JOIN sales s ON s.id = si."saleId" WHERE s."storeId" = ${user.storeId} AND s."deletedAt" IS NULL AND s."createdAt" >= ${chosenFrom} AND s."createdAt" < ${chosenToExclusive} GROUP BY 1 ORDER BY 1`,
+    prisma.purchaseItem.aggregate({ where: { purchaseBatch: { ...batchScope, purchaseDate: { gte: chosenFrom, lt: now } } }, _sum: { quantity: true, buyingPrice: true } }),
+    prisma.saleItem.aggregate({ where: { sale: { ...saleScope, createdAt: { gte: chosenFrom, lt: now } } }, _count: { _all: true }, _sum: { buyingPrice: true } }),
+    prisma.purchaseItem.aggregate({ where: { purchaseBatch: { ...batchScope, purchaseDate: { gte: todayStart, lt: todayEnd } } }, _sum: { quantity: true } }),
+    prisma.saleItem.count({ where: { sale: { ...saleScope, createdAt: { gte: todayStart, lt: todayEnd } } } }),
+  ]);
+  const totalStock = current._count._all;
+  const stockValue = Number(current._sum.buyingPrice ?? 0);
+  const openingStock = totalStock - (purchaseBaseline._sum.quantity ?? 0) + salesBaseline._count._all;
+  const openingValue = stockValue - Number(purchaseBaseline._sum.buyingPrice ?? 0) + Number(salesBaseline._sum.buyingPrice ?? 0);
+  const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const range = { from: dayKey(chosenFrom), to: dayKey(new Date(chosenToExclusive.getTime()-1)) };
+  return {
+    totalStock,
+    stockValue,
+    todayPurchaseQty: todayPurchase._sum.quantity ?? 0,
+    todaySold,
+    openingStock,
+    openingValue,
+    range,
+    purchasesByDay: purchases.map(row => ({ date: dayKey(row.day), quantity: row.quantity, cost: row.cost })),
+    salesByDay: sales.map(row => ({ date: dayKey(row.day), quantity: row.quantity, cost: row.cost })),
+  };
+}
+
 // ============================================================================
 // MANAGER DASHBOARD
 // ============================================================================

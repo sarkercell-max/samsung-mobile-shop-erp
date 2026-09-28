@@ -29,6 +29,18 @@ enum InventoryStatus {
   RETURNED
   LOST
   CANCELLED // unit's purchase batch was voided before it was ever sold
+  DAMAGED
+}
+
+enum StockMovementType {
+  PURCHASE
+  SALE
+  SALE_RETURN
+  PURCHASE_RETURN
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  DAMAGE
+  LOSS
 }
 
 enum PaymentMethod {
@@ -96,6 +108,7 @@ model Store {
   priceHistory    ProductPriceHistory[]
   suppliers       Supplier[]
   supplierPayments SupplierPayment[]
+  stockMovements StockMovement[]
 
   @@map("stores")
 }
@@ -123,6 +136,7 @@ model User {
   expenses                Expense[]              @relation("RecordedByUser")
   auditLogs               AuditLog[]
   priceHistoryEntries     ProductPriceHistory[]  @relation("PriceSetByUser")
+  stockMovements          StockMovement[]
 
   @@index([storeId])
   @@map("users")
@@ -156,6 +170,8 @@ model Product {
   promotions    Promotion[]
   saleItems     SaleItem[]
   priceHistory  ProductPriceHistory[]
+  stockMovements StockMovement[]
+  minimumStock Int @default(5)
 
   @@unique([storeId, model, ram, storageCapacity, color])
   @@index([storeId])
@@ -222,6 +238,7 @@ model PurchaseBatch {
   updatedAt      DateTime @updatedAt
 
   items PurchaseItem[]
+  stockMovements StockMovement[]
 
   @@index([storeId])
   @@index([status])
@@ -303,10 +320,40 @@ model Inventory {
   updatedAt       DateTime         @updatedAt
 
   saleItem SaleItem?
+  stockMovements StockMovement[]
 
   @@index([storeId, status])
   @@index([imei])
   @@map("inventory")
+}
+
+model StockMovement {
+  id             String @id @default(uuid())
+  storeId        String
+  store          Store @relation(fields: [storeId], references: [id])
+  productId      String
+  product        Product @relation(fields: [productId], references: [id])
+  inventoryId    String?
+  inventory      Inventory? @relation(fields: [inventoryId], references: [id])
+  movementType   StockMovementType
+  quantity       Int
+  previousStock  Int
+  newStock       Int
+  referenceType  String?
+  referenceId    String?
+  batchId        String?
+  batch          PurchaseBatch? @relation(fields: [batchId], references: [id])
+  reason         String?
+  createdById    String
+  createdBy      User @relation(fields: [createdById], references: [id])
+  createdAt      DateTime @default(now())
+
+  @@index([storeId, createdAt])
+  @@index([storeId, productId, createdAt])
+  @@index([batchId])
+  @@index([movementType])
+  @@index([inventoryId])
+  @@map("stock_movements")
 }
 
 // ----------------------------------------------------------------------------

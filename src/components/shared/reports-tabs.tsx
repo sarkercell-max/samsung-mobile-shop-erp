@@ -10,6 +10,7 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { LedgerReport } from "@/components/shared/ledger-report";
+import { StockOverview } from "@/components/shared/stock-overview";
 
 interface ReportsTabsProps {
   data: {
@@ -24,6 +25,9 @@ interface ReportsTabsProps {
     transactions: any;
     suppliers: { id: string; name: string }[];
     customers: { id: string; name: string }[];
+    stockAnalytics: any;
+    reportFrom: string;
+    reportTo: string;
   };
 }
 
@@ -80,7 +84,8 @@ export function ReportsTabs({ data }: ReportsTabsProps) {
         <TabsTrigger value="managers">Managers</TabsTrigger>
         <TabsTrigger value="promo">Promo</TabsTrigger>
         <TabsTrigger value="customers">Customers</TabsTrigger>
-        <TabsTrigger value="stock">Low / Dead Stock</TabsTrigger>
+      <TabsTrigger value="stock">Low / Dead Stock</TabsTrigger>
+      <TabsTrigger value="overview">Stock Summary</TabsTrigger>
         <TabsTrigger value="transactions">Transactions</TabsTrigger>
         <TabsTrigger value="ledger">Ledger</TabsTrigger>
       </TabsList>
@@ -204,6 +209,8 @@ export function ReportsTabs({ data }: ReportsTabsProps) {
         </div>
       </TabsContent>
 
+      <TabsContent value="overview"><StockOverview key={`${data.reportFrom}-${data.reportTo}`} initialData={data.stockAnalytics} /></TabsContent>
+
       <TabsContent value="transactions">
         <div className="space-y-4">
           <section><h3 className="mb-2 font-semibold">Purchases</h3>{data.transactions.purchases.map((p:any)=><Card key={p.id}><CardContent className="flex justify-between p-3"><span>{formatDate(p.purchaseDate)} · {p.purchaseNumber} · {p.supplierName}</span><b>{formatCurrency(p.total)}</b></CardContent></Card>)}{!data.transactions.purchases.length&&<p className="text-sm text-muted-foreground">No purchases for this period.</p>}</section>
@@ -213,7 +220,7 @@ export function ReportsTabs({ data }: ReportsTabsProps) {
           <section><h3 className="mb-2 font-semibold">Inventory Received</h3>{data.transactions.inventoryMovements.map((i:any)=><Card key={i.id}><CardContent className="flex justify-between p-3"><span>{formatDate(i.createdAt)} · {i.product.model} · {i.purchaseItem.purchaseBatch.purchaseNumber}</span><span>{i.status}</span></CardContent></Card>)}</section>
         </div>
       </TabsContent>
-      <TabsContent value="ledger"><LedgerReport suppliers={data.suppliers} customers={data.customers} /></TabsContent>
+      <TabsContent value="ledger"><LedgerReport key={`${data.reportFrom}-${data.reportTo}`} initialFrom={data.reportFrom} initialTo={data.reportTo} suppliers={data.suppliers} customers={data.customers} /></TabsContent>
     </Tabs>
   );
 }

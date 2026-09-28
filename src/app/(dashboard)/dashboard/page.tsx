@@ -7,9 +7,11 @@ import {
   DollarSign, TrendingUp, Package, Wallet, Trophy, Users, ReceiptText,
 } from "lucide-react";
 import Link from "next/link";
+import { getStockAnalytics } from "@/actions/reports.actions";
+import { StockOverview } from "@/components/shared/stock-overview";
 
 export default async function OwnerDashboardPage() {
-  const stats = await getOwnerDashboardStats();
+  const [stats, stockAnalytics] = await Promise.all([getOwnerDashboardStats(), getStockAnalytics()]);
 
   return (
     <div className="space-y-6">
@@ -33,6 +35,11 @@ export default async function OwnerDashboardPage() {
           accent={stats.netProfit >= 0 ? "success" : "destructive"}
         />
       </div>
+
+      <section className="space-y-3">
+        <div><h2 className="text-lg font-semibold">Stock Overview</h2><p className="text-sm text-muted-foreground">Current inventory and stock movement</p></div>
+        <StockOverview initialData={stockAnalytics} />
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
