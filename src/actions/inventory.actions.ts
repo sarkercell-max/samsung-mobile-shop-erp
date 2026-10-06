@@ -29,21 +29,20 @@ export async function listInventory(status?: InventoryStatus, query?: string) {
 
 export async function getStockValue() {
   const user = await getCurrentUser();
-  const available = await prisma.inventory.aggregate({
+  const available = await prisma.inventory.findMany({
     where: { storeId: user.storeId, status: "AVAILABLE" },
-    _sum: { buyingPrice: true, sellingPrice: true },
-    _count: { _all: true },
+    select: { buyingPrice: true, product: { select: { defaultSellingPrice: true } } },
   });
   return {
-    unitCount: available._count._all,
-    stockValueAtCost: Number(available._sum.buyingPrice ?? 0),
-    stockValueAtSelling: Number(available._sum.sellingPrice ?? 0),
+    unitCount: available.length,
+    stockValueAtCost: available.reduce((sum, item) => sum + Number(item.buyingPrice), 0),
+    stockValueAtSelling: available.reduce((sum, item) => sum + Number(item.product.defaultSellingPrice), 0),
   };
 }
 
 export async function getStockOverview() {
   const user = await getCurrentUser();
-  const products = await prisma.product.findMany({ where: { storeId: user.storeId, deletedAt: null, isActive: true }, include: { inventory: { select: { status: true, buyingPrice: true, sellingPrice: true, createdAt: true, saleItem: { select: { sellingPrice: true } } } } }, orderBy: { model: "asc" } });
+  const products = await prisma.product.findMany({ where: { deletedAt: null, isActive: true }, include: { inventory: { where: { storeId: user.storeId }, select: { status: true, buyingPrice: true, sellingPrice: true, createdAt: true, saleItem: { select: { sellingPrice: true } } } } }, orderBy: { model: "asc" } });
   return products.map((p) => {
     const units = p.inventory;
     const available = units.filter((i) => i.status === "AVAILABLE");
@@ -99,8 +98,8 @@ export async function reserveInventory(inventoryId: string) {
 export async function getLowStockModels(threshold = 5) {
   const user = await getCurrentUser();
   const products = await prisma.product.findMany({
-    where: { storeId: user.storeId, isActive: true },
-    include: { _count: { select: { inventory: { where: { status: "AVAILABLE" } } } } },
+    where: { isActive: true },
+    include: { _count: { select: { inventory: { where: { storeId: user.storeId, status: "AVAILABLE" } } } } },
   });
   return products
     .map((p) => ({ product: p, availableCount: p._count.inventory }))

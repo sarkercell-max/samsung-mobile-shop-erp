@@ -1,11 +1,13 @@
 import { listPurchaseBatches } from "@/actions/purchase.actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import Link from "next/link";
 import { CancelPurchaseButton } from "@/components/shared/cancel-purchase-button";
+import { PurchaseExport } from "@/components/imports/purchase-export";
+import { Button } from "@/components/ui/button";
+import { TransactionRateAdjustment } from "@/components/shared/transaction-rate-adjustment";
 
 export default async function PurchasePage() {
   const batches = await listPurchaseBatches();
@@ -14,7 +16,7 @@ export default async function PurchasePage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Purchases</h1>
-        <Button asChild size="sm"><Link href="/purchase/new"><Plus className="mr-1 h-4 w-4" /> New Purchase</Link></Button>
+        <div className="flex gap-2"><Button asChild size="sm" variant="outline"><Link href="/purchase/import"><Upload className="mr-1 h-4 w-4"/>Import</Link></Button><PurchaseExport batches={batches.map(b=>({id:b.id,purchaseNumber:b.purchaseNumber,batchNumber:b.batchNumber}))}/><Button asChild size="sm"><Link href="/purchase/new"><Plus className="mr-1 h-4 w-4" /> New Purchase</Link></Button></div>
       </div>
       <div className="space-y-2">
         {batches.map((b) => {
@@ -33,6 +35,12 @@ export default async function PurchasePage() {
                 </div>
                 <p className="text-sm text-muted-foreground">{b.supplierName} · Batch {b.batchNumber}</p>
                 <p className="text-sm">{b.items.length} units · {formatCurrency(total)} {soldCount > 0 && `· ${soldCount} sold`}</p>
+                {b.status === "RECEIVED" && <div className="mt-3 space-y-2 border-t pt-3"><p className="text-xs font-medium text-muted-foreground">Purchase item rates</p>{b.items.map((item) => (
+                  <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span>{item.product.model} · {item.imei} · {formatCurrency(Number(item.buyingPrice))}</span>
+                    <TransactionRateAdjustment type="purchase" itemId={item.id} />
+                  </div>
+                ))}</div>}
                 {b.status === "CANCELLED" && b.cancelReason && (
                   <p className="mt-1 text-xs text-muted-foreground">Cancelled by {b.cancelledBy?.name}: {b.cancelReason}</p>
                 )}

@@ -94,10 +94,13 @@ export function InvoicePrintView({ sale, store, format, canSeeCost = false }: In
         {totalPromo > 0 && <div className="flex justify-between"><span>Promotional Discount</span><span>-{formatCurrency(totalPromo)}</span></div>}
         <div className="flex justify-between"><span>Additional Discount</span><span>-{formatCurrency(Number(sale.discount))}</span></div>
         <div className={isThermal ? "flex justify-between text-sm font-bold" : "flex justify-between text-xl font-bold"}>
-          <span>Total Paid</span><span>{formatCurrency(Number(sale.total))}</span>
+          <span>Total</span><span>{formatCurrency(Number(sale.total))}</span>
         </div>
 
         <div className="my-2 border-t border-dashed" />
+
+        <div className="flex justify-between font-medium"><span>Paid</span><span>{formatCurrency(sale.payments.reduce((sum: number, p: any) => sum + Number(p.amount), 0))}</span></div>
+        <div className="flex justify-between font-medium"><span>Due</span><span>{formatCurrency(Math.max(Number(sale.total) - sale.payments.reduce((sum: number, p: any) => sum + Number(p.amount), 0), 0))}</span></div>
 
         {sale.payments.map((p: any) => (
           <div key={p.id} className="flex justify-between"><span>{p.method}</span><span>{formatCurrency(Number(p.amount))}</span></div>

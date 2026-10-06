@@ -49,7 +49,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
               </div>
               <div className="text-right">
                 <Badge variant={STATUS_VARIANT[inv.status]}>{inv.status}</Badge>
-                <p className="mt-1 text-sm font-semibold">{formatCurrency(Number(inv.sellingPrice))}</p>
+                <p className="mt-1 text-sm font-semibold">{formatCurrency(inv.status === "AVAILABLE" ? Number(inv.product.defaultSellingPrice) : Number(inv.sellingPrice))}</p>
                 {user.role === "OWNER" && <InventoryAdjustment inventoryId={inv.id} status={inv.status} />}
               </div>
             </CardContent>

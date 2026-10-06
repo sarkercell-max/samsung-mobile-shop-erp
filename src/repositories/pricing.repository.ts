@@ -7,17 +7,16 @@ import { prisma } from "@/lib/prisma";
  * maintained when a new period is created.
  */
 export const pricingRepository = {
-  async getCurrentPeriod(storeId: string, productId: string) {
+  async getCurrentPeriod(_storeId: string, productId: string) {
     return prisma.productPriceHistory.findFirst({
-      where: { storeId, productId, effectiveTo: null },
+      where: { productId, effectiveTo: null },
       orderBy: { effectiveFrom: "desc" },
     });
   },
 
-  async getPeriodAt(storeId: string, productId: string, date: Date) {
+  async getPeriodAt(_storeId: string, productId: string, date: Date) {
     return prisma.productPriceHistory.findFirst({
       where: {
-        storeId,
         productId,
         effectiveFrom: { lte: date },
         OR: [{ effectiveTo: null }, { effectiveTo: { gte: date } }],
@@ -26,9 +25,9 @@ export const pricingRepository = {
     });
   },
 
-  async listHistory(storeId: string, productId: string) {
+  async listHistory(_storeId: string, productId: string) {
     return prisma.productPriceHistory.findMany({
-      where: { storeId, productId },
+      where: { productId },
       orderBy: { effectiveFrom: "desc" },
     });
   },

@@ -10,20 +10,29 @@ export async function createPromotion(input: CreatePromotionInput) {
   const parsed = createPromotionSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input." };
 
-  const promo = await prisma.promotion.create({ data: { ...parsed.data, storeId: user.storeId } });
-
-  await prisma.auditLog.create({
-    data: { storeId: user.storeId, userId: user.id, action: "promotion.create", entityType: "Promotion", entityId: promo.id },
+  const product = await prisma.product.findUnique({ where: { id: parsed.data.productId } });
+  if (!product) return { ok: false as const, error: "Product not found." };
+  const promo = await prisma.$transaction(async (tx) => {
+    const overlapping = await tx.promotion.findMany({ where: { productId: product.id, isActive: true, startDate: { lte: parsed.data.endDate }, endDate: { gte: parsed.data.startDate } } });
+    await tx.promotion.updateMany({ where: { id: { in: overlapping.map((row) => row.id) } }, data: { isActive: false } });
+    const created = await tx.promotion.create({ data: { ...parsed.data, storeId: product.storeId } });
+    await tx.auditLog.create({ data: { storeId: user.storeId, userId: user.id, action: "global_promotion_update", entityType: "Promotion", entityId: created.id, metadata: {
+      type: "Global Promotion Update", productId: product.id,
+      oldValues: overlapping.map((row) => ({ promotionId: row.id, promoAmount: Number(row.promoAmount), promoType: row.promoType })),
+      newValues: { promoAmount: parsed.data.promoAmount, promoType: parsed.data.promoType }, effectiveFrom: parsed.data.startDate,
+    } } });
+    return created;
   });
 
   revalidatePath("/promotions");
+  revalidatePath("/sales/new");
+  revalidatePath("/dashboard");
   return { ok: true as const, data: promo };
 }
 
 export async function listPromotions() {
   const user = await requireOwner();
   return prisma.promotion.findMany({
-    where: { storeId: user.storeId },
     include: { product: true },
     orderBy: { startDate: "desc" },
   });
@@ -31,11 +40,18 @@ export async function listPromotions() {
 
 export async function togglePromotion(promotionId: string, isActive: boolean) {
   const user = await requireOwner();
-  await prisma.promotion.update({ where: { id: promotionId, storeId: user.storeId }, data: { isActive } });
-  await prisma.auditLog.create({
-    data: { storeId: user.storeId, userId: user.id, action: isActive ? "promotion.activate" : "promotion.deactivate", entityType: "Promotion", entityId: promotionId },
+  const existing = await prisma.promotion.findUnique({ where: { id: promotionId } });
+  if (!existing) return { ok: false as const, error: "Promotion not found." };
+  await prisma.$transaction(async (tx) => {
+    if (isActive) {
+      await tx.promotion.updateMany({ where: { productId: existing.productId, id: { not: existing.id }, isActive: true, startDate: { lte: existing.endDate }, endDate: { gte: existing.startDate } }, data: { isActive: false } });
+    }
+    await tx.promotion.update({ where: { id: promotionId }, data: { isActive } });
+    await tx.auditLog.create({ data: { storeId: user.storeId, userId: user.id, action: isActive ? "promotion.activate" : "promotion.deactivate", entityType: "Promotion", entityId: promotionId } });
   });
   revalidatePath("/promotions");
+  revalidatePath("/sales/new");
+  revalidatePath("/dashboard");
   return { ok: true as const };
 }
 
@@ -47,7 +63,7 @@ export async function togglePromotion(promotionId: string, isActive: boolean) {
  */
 export async function deletePromotionIfUnused(promotionId: string) {
   const user = await requireOwner();
-  const promo = await prisma.promotion.findFirst({ where: { id: promotionId, storeId: user.storeId } });
+  const promo = await prisma.promotion.findUnique({ where: { id: promotionId } });
   if (!promo) return { ok: false as const, error: "Promotion not found." };
 
   const usageCount = await prisma.saleItem.count({ where: { promotionId } });
@@ -72,7 +88,7 @@ export async function getEndingSoonPromotions() {
   const now = new Date();
   const soon = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
   return prisma.promotion.findMany({
-    where: { storeId: user.storeId, isActive: true, endDate: { gte: now, lte: soon } },
+      where: { isActive: true, endDate: { gte: now, lte: soon } },
     include: { product: true },
   });
 }

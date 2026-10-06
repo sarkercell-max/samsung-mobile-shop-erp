@@ -8,7 +8,7 @@ export default async function ProductPricingPage({ params }: { params: Promise<{
   const user = await requireOwner();
   const { id } = await params;
 
-  const product = await prisma.product.findFirst({ where: { id, storeId: user.storeId } });
+  const product = await prisma.product.findUnique({ where: { id } });
   if (!product) notFound();
 
   const history = await listPriceHistory(id);

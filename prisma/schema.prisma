@@ -96,6 +96,7 @@ model Store {
   updatedAt DateTime @updatedAt
 
   users           User[]
+  memberships     StoreMembership[]
   products        Product[]
   purchaseBatches PurchaseBatch[]
   inventory       Inventory[]
@@ -119,6 +120,7 @@ model User {
   authId    String   @unique // Supabase auth.users.id
   storeId   String
   store     Store    @relation(fields: [storeId], references: [id])
+  storeMemberships StoreMembership[]
   name      String
   email     String   @unique
   phone     String?
@@ -142,12 +144,29 @@ model User {
   @@map("users")
 }
 
+/// Explicit authorization for users assigned to one or more locations.
+/// Owners are centrally privileged; manager access is limited to memberships.
+model StoreMembership {
+  id        String   @id @default(uuid())
+  userId    String
+  storeId   String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, storeId])
+  @@index([storeId])
+  @@map("store_memberships")
+}
+
 // ----------------------------------------------------------------------------
 // PRODUCT
 // ----------------------------------------------------------------------------
 
 model Product {
   id                 String   @id @default(uuid())
+  // Legacy catalog-owner store. Product/SKU and its master rates are shared
+  // across locations; stock and transactions reference this central product.
   storeId            String
   store              Store    @relation(fields: [storeId], references: [id])
   brand              String   @default("Samsung")

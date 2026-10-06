@@ -30,15 +30,13 @@ export async function createStaffUser(input: z.infer<typeof createUserSchema>) {
   });
   if (error) return { ok: false as const, error: error.message };
 
-  const user = await prisma.user.create({
-    data: {
-      authId: authUser.user.id,
-      storeId: owner.storeId,
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      role: data.role,
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({ data: {
+      authId: authUser.user.id, storeId: owner.storeId, name: data.name,
+      email: data.email, phone: data.phone, role: data.role,
+    } });
+    await tx.storeMembership.create({ data: { userId: created.id, storeId: owner.storeId } });
+    return created;
   });
 
   revalidatePath("/users");
@@ -47,12 +45,14 @@ export async function createStaffUser(input: z.infer<typeof createUserSchema>) {
 
 export async function listStaff() {
   const owner = await requireOwner();
-  return prisma.user.findMany({ where: { storeId: owner.storeId, deletedAt: null }, orderBy: { createdAt: "asc" } });
+  return prisma.user.findMany({ where: { deletedAt: null, OR: [{ storeId: owner.storeId }, { storeMemberships: { some: { storeId: owner.storeId } } }] }, orderBy: { createdAt: "asc" } });
 }
 
 export async function deactivateStaff(userId: string) {
   const owner = await requireOwner();
-  await prisma.user.update({ where: { id: userId, storeId: owner.storeId }, data: { isActive: false } });
+  const assigned = await prisma.storeMembership.findUnique({ where: { userId_storeId: { userId, storeId: owner.storeId } } });
+  if (!assigned) return { ok: false as const, error: "This user is not assigned to the selected shop." };
+  await prisma.user.update({ where: { id: userId }, data: { isActive: false } });
   revalidatePath("/users");
   return { ok: true as const };
 }

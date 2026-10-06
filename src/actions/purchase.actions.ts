@@ -34,7 +34,7 @@ export async function createPurchaseBatch(input: CreatePurchaseBatchInput) {
   }
 
   const productIds = [...new Set(data.items.map((i) => i.productId))];
-  const products = await prisma.product.findMany({ where: { id: { in: productIds }, storeId: user.storeId } });
+  const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
   const productById = new Map(products.map((p) => [p.id, p]));
   const missingProduct = data.items.find((i) => !productById.has(i.productId));
   if (missingProduct) {
@@ -190,4 +190,40 @@ export async function listPurchaseBatches() {
     include: { items: { include: { product: true, inventory: true } }, createdBy: true, cancelledBy: true },
     orderBy: { createdAt: "desc" },
   });
+}
+
+export async function checkPurchaseImportImeis(imeis: string[]) {
+  const user = await requireOwner();
+  const normalized = [...new Set(imeis)].filter((x) => /^\d{15}$/.test(x));
+  if (normalized.length > 5000) return { existing: [] as string[] };
+  const hits = await prisma.inventory.findMany({ where: { storeId: user.storeId, imei: { in: normalized } }, select: { imei: true } });
+  // The preview lookup is store-scoped; the global unique constraint still
+  // rejects an IMEI collision during confirmation without exposing other stores.
+  return { existing: hits.map((x) => x.imei) };
+}
+
+export async function createPurchaseBatchFromImport(input: CreatePurchaseBatchInput) {
+  const user = await requireOwner();
+  if (!Array.isArray(input?.items) || input.items.length > 5000 || input.items.some((item) => !/^\d{15}$/.test(item.imei))) {
+    return { ok: false as const, error: "Purchase import IMEIs must contain exactly 15 digits (maximum 5,000 rows)." };
+  }
+  const duplicateBatch = await prisma.purchaseBatch.findFirst({ where: { storeId: user.storeId, batchNumber: input.batchNumber.trim(), status: "RECEIVED" } });
+  if (duplicateBatch) return { ok: false as const, error: `Purchase batch ${input.batchNumber} already exists in this store.` };
+  return createPurchaseBatch(input);
+}
+
+export async function exportPurchases(ids?: string[], filters?: { from?: string; to?: string; supplier?: string; batch?: string }) {
+  const user = await requireOwner();
+  const batches = await prisma.purchaseBatch.findMany({
+    where: { storeId: user.storeId, ...(ids?.length ? { id: { in: ids } } : {}), ...(filters?.supplier ? { supplierName: { contains: filters.supplier, mode: "insensitive" } } : {}), ...(filters?.batch ? { batchNumber: { contains: filters.batch, mode: "insensitive" } } : {}), ...(filters?.from || filters?.to ? { purchaseDate: { ...(filters.from ? { gte: new Date(`${filters.from}T00:00:00`) } : {}), ...(filters.to ? { lte: new Date(`${filters.to}T23:59:59.999`) } : {}) } } : {}) },
+    include: { items: { include: { product: true } } }, orderBy: { purchaseDate: "desc" },
+  });
+  const exportedCount = batches.reduce((count, batch) => count + batch.items.length, 0);
+  await prisma.auditLog.create({ data: { storeId: user.storeId, userId: user.id, action: "purchase.export", entityType: "PurchaseBatch", metadata: { itemCount: exportedCount, selected: Boolean(ids?.length), filters: { from: filters?.from, to: filters?.to, supplier: Boolean(filters?.supplier), batch: Boolean(filters?.batch) } } } });
+  return batches.flatMap((b) => b.items.map((item) => ({
+    "Purchase Number": b.purchaseNumber, "Purchase Batch": b.batchNumber, Supplier: b.supplierName,
+    "Purchase Date": b.purchaseDate.toISOString().slice(0, 10), IMEI: item.imei, Product: item.product.model,
+    SKU: item.product.sku, Model: item.product.model, RAM: item.product.ram, Storage: item.product.storageCapacity,
+    Color: item.product.color, "Purchase Price": item.buyingPrice.toString(), Quantity: item.quantity, Status: b.status,
+  })));
 }

@@ -68,7 +68,7 @@ export async function getSupplierLedger(supplierId: string, from: Date, to: Date
   ]);
   const openingBalance = Number(beforeItems._sum.buyingPrice ?? 0) - Number(beforePayments._sum.amount ?? 0);
   const rows = [
-    ...batches.map((batch) => ({ date: batch.purchaseDate, description: `Purchase — Batch #${batch.purchaseNumber}`, purchaseNumber: batch.purchaseNumber, batchId: batch.id, debit: batch.items.reduce((sum, item) => sum + Number(item.buyingPrice), 0), credit: 0 })),
+    ...batches.map((batch) => ({ date: batch.purchaseDate, description: `Purchase — Batch #${batch.batchNumber} · ${batch.purchaseNumber}`, purchaseNumber: batch.purchaseNumber, batchNumber: batch.batchNumber, batchId: batch.id, debit: batch.items.reduce((sum, item) => sum + Number(item.buyingPrice), 0), credit: 0 })),
     ...payments.map((payment) => ({ date: payment.paymentDate, description: `Payment — ${payment.paymentMethod}`, purchaseNumber: null, batchId: null, debit: 0, credit: Number(payment.amount) })),
   ].sort((a, b) => a.date.getTime() - b.date.getTime());
   let balance = openingBalance;

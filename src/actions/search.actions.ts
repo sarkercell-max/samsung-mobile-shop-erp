@@ -30,7 +30,7 @@ export async function globalSearch(query: string) {
       take: 10,
     }),
     prisma.product.findMany({
-      where: { storeId: user.storeId, model: { contains: query, mode: "insensitive" } },
+      where: { model: { contains: query, mode: "insensitive" } },
       take: 10,
     }),
   ]);

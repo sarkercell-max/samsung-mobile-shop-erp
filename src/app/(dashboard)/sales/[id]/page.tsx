@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import Link from "next/link";
 import { SaleVoidButton } from "@/components/sales/sale-void-button";
+import { TransactionRateAdjustment } from "@/components/shared/transaction-rate-adjustment";
 
 export default async function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -66,6 +67,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                   {user.role === "OWNER" && (
                     <div className="flex justify-between"><span>Cost / Profit</span><span>{formatCurrency(Number(item.buyingPrice))} / {formatCurrency(Number(item.profit))}</span></div>
                   )}
+                  {user.role === "OWNER" && sale.status === "COMPLETED" && <div className="pt-2"><TransactionRateAdjustment type="sale" itemId={item.id} /></div>}
                 </div>
               </div>
             );
@@ -81,6 +83,8 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
           )}
           <div className="flex justify-between text-sm"><span>Additional Discount</span><span>-{formatCurrency(Number(sale.discount))}</span></div>
           <div className="flex justify-between border-t pt-2 text-lg font-bold"><span>Total Paid</span><span>{formatCurrency(Number(sale.total))}</span></div>
+          <div className="flex justify-between text-sm"><span>Paid</span><span>{formatCurrency(sale.payments.reduce((sum, payment) => sum + Number(payment.amount), 0))}</span></div>
+          <div className="flex justify-between text-sm"><span>Due</span><span>{formatCurrency(Math.max(Number(sale.total) - sale.payments.reduce((sum, payment) => sum + Number(payment.amount), 0), 0))}</span></div>
           {user.role === "OWNER" && (
             <div className="flex justify-between text-xs text-muted-foreground"><span>Total Profit</span><span>{formatCurrency(Number(sale.totalProfit))}</span></div>
           )}

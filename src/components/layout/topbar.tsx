@@ -4,8 +4,10 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Bell, LogOut } from "lucide-react";
+import { StoreSelector } from "@/components/layout/store-selector";
+import type { Store } from "@prisma/client";
 
-export function Topbar({ userName, notificationCount = 0 }: { userName: string; notificationCount?: number }) {
+export function Topbar({ userName, notificationCount = 0, stores, currentStoreId }: { userName: string; notificationCount?: number; stores: Pick<Store, "id" | "name">[]; currentStoreId: string }) {
   const router = useRouter();
 
   async function handleSignOut() {
@@ -22,6 +24,7 @@ export function Topbar({ userName, notificationCount = 0 }: { userName: string; 
         <p className="font-semibold">{userName}</p>
       </div>
       <div className="flex items-center gap-2">
+        <StoreSelector stores={stores} currentStoreId={currentStoreId} />
         <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
           <Bell className="h-5 w-5" />
           {notificationCount > 0 && (

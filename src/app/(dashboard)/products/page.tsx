@@ -3,10 +3,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
-import { Plus, Tag } from "lucide-react";
+import { Plus, Tag, Upload } from "lucide-react";
 import Link from "next/link";
 import { ProductActions } from "@/components/shared/product-actions";
 import { getCurrentUser } from "@/lib/auth";
+import { ProductExport } from "@/components/imports/product-export";
 
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<{ showArchived?: string }> }) {
   const params = await searchParams;
@@ -18,7 +19,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Products</h1>
-        <div className="flex gap-2">{user.role === "OWNER" && <Button asChild size="sm" variant="outline"><Link href={showArchived ? "/products" : "/products?showArchived=true"}>{showArchived ? "Hide archived" : "Show archived"}</Link></Button>}<Button asChild size="sm"><Link href="/products/new"><Plus className="mr-1 h-4 w-4" /> Add Product</Link></Button></div>
+        <div className="flex gap-2">{user.role === "OWNER" && <><Button asChild size="sm" variant="outline"><Link href="/products/import"><Upload className="mr-1 h-4 w-4"/>Import</Link></Button><ProductExport products={products.map(p=>({id:p.id,label:`${p.model} · ${p.sku}`}))}/><Button asChild size="sm" variant="outline"><Link href={showArchived ? "/products" : "/products?showArchived=true"}>{showArchived ? "Hide archived" : "Show archived"}</Link></Button></>}<Button asChild size="sm"><Link href="/products/new"><Plus className="mr-1 h-4 w-4" /> Add Product</Link></Button></div>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {products.map((p) => (

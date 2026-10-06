@@ -52,14 +52,78 @@ export async function createProduct(input: CreateProductInput) {
 export async function listProducts(includeArchived = false) {
   const user = await getCurrentUser();
   if (includeArchived && user.role !== "OWNER") throw new Error("Only the Owner can show archived products.");
-  return prisma.product.findMany({ where: { storeId: user.storeId, deletedAt: null, ...(includeArchived ? {} : { isActive: true }) }, orderBy: { model: "asc" } });
+  return prisma.product.findMany({ where: { deletedAt: null, ...(includeArchived ? {} : { isActive: true }) }, orderBy: { model: "asc" } });
+}
+
+/** Store-scoped product master export; never includes stock or transaction rows. */
+export async function exportProducts(ids?: string[]) {
+  const user = await requireOwner();
+  const rows = await prisma.product.findMany({
+    where: { deletedAt: null, ...(ids?.length ? { id: { in: ids } } : {}) },
+    orderBy: { model: "asc" },
+    include: { priceHistory: { where: { effectiveTo: null }, take: 1 } },
+  });
+  await prisma.auditLog.create({ data: { storeId: user.storeId, userId: user.id, action: "product.export", entityType: "Product", metadata: { count: rows.length, selected: Boolean(ids?.length) } } });
+  return rows.map((p) => ({
+    SKU: p.sku, Brand: p.brand, Model: p.model, RAM: p.ram, Storage: p.storageCapacity,
+    Color: p.color, Barcode: p.barcode ?? "", "Purchase Price": p.priceHistory[0]?.purchasePrice.toString() ?? "",
+    "Sale Price": p.priceHistory[0]?.salePrice.toString() ?? "", Status: p.isActive ? "Active" : "Archived",
+    "Minimum Stock": p.minimumStock,
+  }));
+}
+
+export type ProductImportRow = { rowNumber: number; brand: string; model: string; ram: string; storageCapacity: string; color: string; sku: string; barcode?: string; defaultBuyingPrice: number; defaultSellingPrice: number };
+
+/** Revalidates every imported value and writes only product master data. */
+export async function importProducts(rows: ProductImportRow[], mode: "create" | "update" | "both") {
+  const user = await requireOwner();
+  if (!["create", "update", "both"].includes(mode)) return { ok: false as const, error: "Invalid import mode." };
+  if (!Array.isArray(rows) || rows.length > 5000) return { ok: false as const, error: "Import must contain between 1 and 5,000 rows." };
+  if (!rows.length) return { ok: false as const, error: "No valid rows to import." };
+  if (rows.some((r) => !r || typeof r !== "object" || Object.values(r).some((v) => typeof v === "string" && v.length > 500))) return { ok: false as const, error: "An imported field is too long." };
+  const created: string[] = [], updated: string[] = [];
+  const globalRateChanges: Array<{ productId: string; sku: string; oldValues: { purchasePrice: number; salePrice: number } | null; newValues: { purchasePrice: number; salePrice: number }; effectiveFrom: Date }> = [];
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const row of rows) {
+        const parsed = createProductSchema.safeParse({ ...row, brand: row.brand || "Samsung" });
+        if (!parsed.success) throw new Error(`Row ${row.rowNumber}: ${parsed.error.issues[0]?.message ?? "Invalid product."}`);
+        const data = parsed.data;
+        const existing = await tx.product.findUnique({ where: { sku: data.sku } });
+        if (existing && mode === "create") throw new Error(`Row ${row.rowNumber}: SKU ${data.sku} already exists.`);
+        if (!existing && mode === "update") throw new Error(`Row ${row.rowNumber}: SKU ${data.sku} was not found for update.`);
+        if (existing) {
+          const current = await tx.productPriceHistory.findFirst({ where: { productId: existing.id, effectiveTo: null }, orderBy: { effectiveFrom: "desc" } });
+          await tx.product.update({ where: { id: existing.id }, data: { brand: data.brand, model: data.model, ram: data.ram, storageCapacity: data.storageCapacity, color: data.color, barcode: data.barcode || null } });
+          if (!current || Number(current.purchasePrice) !== data.defaultBuyingPrice || Number(current.salePrice) !== data.defaultSellingPrice) {
+            const effectiveFrom = new Date();
+            if (current && effectiveFrom <= current.effectiveFrom) effectiveFrom.setTime(current.effectiveFrom.getTime() + 1000);
+            globalRateChanges.push({ productId: existing.id, sku: data.sku, oldValues: current ? { purchasePrice: Number(current.purchasePrice), salePrice: Number(current.salePrice) } : null, newValues: { purchasePrice: data.defaultBuyingPrice, salePrice: data.defaultSellingPrice }, effectiveFrom });
+            if (current) await tx.productPriceHistory.update({ where: { id: current.id }, data: { effectiveTo: effectiveFrom } });
+            await tx.productPriceHistory.create({ data: { storeId: existing.storeId, productId: existing.id, purchasePrice: data.defaultBuyingPrice, salePrice: data.defaultSellingPrice, effectiveFrom, createdById: user.id } });
+            await tx.product.update({ where: { id: existing.id }, data: { defaultBuyingPrice: data.defaultBuyingPrice, defaultSellingPrice: data.defaultSellingPrice } });
+          }
+          updated.push(data.sku);
+        } else {
+          const createdProduct = await tx.product.create({ data: { ...data, storeId: user.storeId } });
+          const effectiveFrom = new Date();
+          await tx.productPriceHistory.create({ data: { storeId: user.storeId, productId: createdProduct.id, purchasePrice: data.defaultBuyingPrice, salePrice: data.defaultSellingPrice, effectiveFrom, createdById: user.id } });
+          globalRateChanges.push({ productId: createdProduct.id, sku: data.sku, oldValues: null, newValues: { purchasePrice: data.defaultBuyingPrice, salePrice: data.defaultSellingPrice }, effectiveFrom });
+          created.push(data.sku);
+        }
+      }
+      await tx.auditLog.create({ data: { storeId: user.storeId, userId: user.id, action: "product.import", entityType: "Product", metadata: { created: created.length, updated: updated.length, globalRateChanges } } });
+    }, { timeout: 30_000, maxWait: 10_000 });
+  } catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : "Product import failed." }; }
+  revalidatePath("/products");
+  return { ok: true as const, created: created.length, updated: updated.length };
 }
 
 /** Soft-archive: hides the product from active pickers without touching
  *  any historical purchase/sale/inventory data that references it. */
 export async function deactivateProduct(productId: string) {
   const user = await requireOwner();
-  await prisma.product.update({ where: { id: productId, storeId: user.storeId }, data: { isActive: false } });
+  await prisma.product.update({ where: { id: productId }, data: { isActive: false } });
   await prisma.auditLog.create({
     data: { storeId: user.storeId, userId: user.id, action: "product.deactivate", entityType: "Product", entityId: productId },
   });
@@ -69,7 +133,7 @@ export async function deactivateProduct(productId: string) {
 
 export async function reactivateProduct(productId: string) {
   const user = await requireOwner();
-  await prisma.product.update({ where: { id: productId, storeId: user.storeId }, data: { isActive: true } });
+  await prisma.product.update({ where: { id: productId }, data: { isActive: true } });
   await prisma.auditLog.create({
     data: { storeId: user.storeId, userId: user.id, action: "product.reactivate", entityType: "Product", entityId: productId },
   });
@@ -84,7 +148,7 @@ export async function reactivateProduct(productId: string) {
  */
 export async function deleteProductIfUnused(productId: string) {
   const user = await requireOwner();
-  const product = await prisma.product.findFirst({ where: { id: productId, storeId: user.storeId } });
+  const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) return { ok: false as const, error: "Product not found." };
 
   const [purchaseCount, inventoryCount, saleCount, promoCount] = await Promise.all([

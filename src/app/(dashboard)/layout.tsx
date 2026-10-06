@@ -12,7 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="flex min-h-dvh">
       <Sidebar role={user.role} storeName={user.store.name} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar userName={user.name} notificationCount={notificationCount} />
+        <Topbar userName={user.name} notificationCount={notificationCount} stores={user.accessibleStores} currentStoreId={user.storeId} />
         <main className="flex-1 overflow-y-auto p-4 pb-24 lg:p-6 lg:pb-6">{children}</main>
       </div>
       <BottomNav role={user.role} />

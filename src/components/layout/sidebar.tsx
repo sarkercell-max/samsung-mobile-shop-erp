@@ -20,6 +20,7 @@ const OWNER_NAV = [
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/expenses", label: "Expenses", icon: Wallet },
   { href: "/users", label: "Users", icon: UserCog },
+  { href: "/stores", label: "Shops", icon: Store },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

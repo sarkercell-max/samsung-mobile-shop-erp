@@ -42,15 +42,14 @@ export async function lookupImei(rawImei: string) {
 
   // Find an active promotion for this product, if any.
   const now = new Date();
-  const promo = await prisma.promotion.findFirst({
+  const [promo, currentPeriod] = await Promise.all([prisma.promotion.findFirst({
     where: {
-      storeId: user.storeId,
       productId: record.productId,
       isActive: true,
       startDate: { lte: now },
       endDate: { gte: now },
     },
-  });
+  }), prisma.productPriceHistory.findFirst({ where: { productId: record.productId, effectiveTo: null }, orderBy: { effectiveFrom: "desc" } })]);
 
   return {
     ok: true as const,
@@ -68,7 +67,7 @@ export async function lookupImei(rawImei: string) {
       // Buying price is fetched for profit calculation but MUST NEVER be
       // rendered to a Manager on the client — filter it out at the UI layer.
       buyingPrice: Number(record.buyingPrice),
-      sellingPrice: Number(record.sellingPrice),
+      sellingPrice: Number(currentPeriod?.salePrice ?? record.product.defaultSellingPrice ?? record.sellingPrice),
       warrantyMonths: record.warrantyMonths,
       promo: promo
         ? { id: promo.id, amount: Number(promo.promoAmount), type: promo.promoType }
@@ -160,6 +159,12 @@ export async function createSale(input: CreateSaleInput) {
       throw new Error("One or more IMEIs could not be found in inventory.");
     }
 
+    const currentPeriods = await tx.productPriceHistory.findMany({
+      where: { productId: { in: inventoryRows.map((row) => row.productId) }, effectiveTo: null },
+      orderBy: { effectiveFrom: "desc" },
+    });
+    const currentPriceByProduct = new Map(currentPeriods.map((period) => [period.productId, Number(period.salePrice)]));
+
     const alreadySold = inventoryRows.filter((r) => r.status !== InventoryStatus.AVAILABLE);
     if (alreadySold.length > 0) {
       throw new Error(`IMEI ${alreadySold[0]!.imei} is not available (${alreadySold[0]!.status}).`);
@@ -169,8 +174,7 @@ export async function createSale(input: CreateSaleInput) {
     const now = new Date();
     const promos = await tx.promotion.findMany({
       where: {
-        storeId: user.storeId,
-        productId: { in: inventoryRows.map((r) => r.productId) },
+      productId: { in: inventoryRows.map((r) => r.productId) },
         isActive: true,
         startDate: { lte: now },
         endDate: { gte: now },
@@ -210,7 +214,7 @@ export async function createSale(input: CreateSaleInput) {
     const itemsData = inventoryRows.map((inv) => {
       const promo = promoByProduct.get(inv.productId);
       const promoAmount = promo ? Number(promo.promoAmount) : 0;
-      const grossSellingPrice = Number(inv.sellingPrice);
+      const grossSellingPrice = currentPriceByProduct.get(inv.productId) ?? Number(inv.product.defaultSellingPrice ?? inv.sellingPrice);
       const buyingPrice = Number(inv.buyingPrice);
       const profit = grossSellingPrice - buyingPrice + promoAmount - perItemDiscount;
 
