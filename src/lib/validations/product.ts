@@ -7,7 +7,9 @@ export const createProductSchema = z.object({
   storageCapacity: z.string().min(1, "Storage is required"),
   color: z.string().min(1, "Color is required"),
   sku: z.string().min(1, "SKU is required"),
-  barcode: z.string().optional(),
+  // Empty/whitespace barcodes must be stored as NULL; the database enforces
+  // uniqueness for non-NULL barcode values.
+  barcode: z.string().optional().transform((value) => value?.trim() || undefined),
   defaultSellingPrice: z.coerce.number().positive("Sale price must be greater than 0"),
   defaultBuyingPrice: z.coerce.number().positive("Purchase price must be greater than 0"),
 });

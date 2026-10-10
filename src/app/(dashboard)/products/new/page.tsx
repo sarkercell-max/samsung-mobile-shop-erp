@@ -24,7 +24,6 @@ export default function NewProductPage() {
     storageCapacity: "",
     color: "",
     sku: "",
-    barcode: "",
     defaultBuyingPrice: "",
     defaultSellingPrice: "",
   });
@@ -47,7 +46,6 @@ export default function NewProductPage() {
         storageCapacity: form.storageCapacity,
         color: form.color,
         sku: form.sku,
-        barcode: form.barcode || undefined,
         defaultBuyingPrice: Number(form.defaultBuyingPrice),
         defaultSellingPrice: Number(form.defaultSellingPrice),
       });
@@ -125,15 +123,6 @@ export default function NewProductPage() {
                 value={form.sku}
                 onChange={(e) => update("sku", e.target.value)}
                 required
-              />
-            </div>
-
-            <div>
-              <Label>Barcode (optional)</Label>
-              <Input
-                className="mt-1.5"
-                value={form.barcode}
-                onChange={(e) => update("barcode", e.target.value)}
               />
             </div>
 
