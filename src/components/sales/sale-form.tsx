@@ -167,6 +167,7 @@ export function SaleForm({ isOwner }: { isOwner: boolean }) {
         </CardHeader>
         <CardContent>
           <ImeiScanner onScan={handleScan} disabled={submitting || scanning} />
+          {scanning && <p role="status" className="mt-2 flex items-center gap-2 text-sm font-medium text-primary"><Loader2 className="h-4 w-4 animate-spin" /> IMEI যাচাই করা হচ্ছে…</p>}
           {scanError && <p className="mt-2 text-sm font-medium text-destructive">{scanError}</p>}
         </CardContent>
       </Card>
@@ -247,16 +248,16 @@ export function SaleForm({ isOwner }: { isOwner: boolean }) {
       </Card>
 
       {/* Sticky mobile-first summary + complete-sale bar */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 p-4 backdrop-blur lg:sticky lg:bottom-4 lg:col-span-2 lg:rounded-2xl lg:border">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
-          <div>
+      <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 border-t bg-background/95 px-3 py-3 backdrop-blur lg:sticky lg:bottom-4 lg:col-span-2 lg:rounded-2xl lg:border lg:p-4">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
+          <div className="min-w-0">
             <p className="text-xs text-muted-foreground">
               Subtotal {formatCurrency(subtotal)} {discount > 0 && `− ${formatCurrency(discount)} discount`}
               {totalPromo > 0 && ` · Promo ${formatCurrency(totalPromo)}`}
             </p>
-            <p className="text-2xl font-bold">{formatCurrency(total)}</p>
+            <p className="text-xl font-bold sm:text-2xl">{formatCurrency(total)}</p>
           </div>
-          <Button size="lg" onClick={handleSubmit} disabled={!canSubmit} className={cn("min-w-[160px]")}>
+          <Button size="lg" onClick={handleSubmit} disabled={!canSubmit} className={cn("min-h-11 shrink-0 px-3 sm:min-w-[160px] sm:px-6")}>
             {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Complete Sale"}
           </Button>
         </div>

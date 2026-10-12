@@ -3,7 +3,7 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { DollarSign, TrendingUp, Wallet, ReceiptText, Plus } from "lucide-react";
+import { DollarSign, TrendingUp, ReceiptText, Plus } from "lucide-react";
 import Link from "next/link";
 
 export default async function ManagerDashboardPage() {
@@ -23,10 +23,9 @@ export default async function ManagerDashboardPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-2">
         <StatCard label="Today's Store Sales" value={formatCurrency(stats.todayStoreSales.total)} icon={DollarSign} trend={{ value: `${stats.todayStoreSales.count} sales`, positive: true }} />
         <StatCard label="My Sales (Month)" value={formatCurrency(stats.mySales.total)} icon={TrendingUp} accent="success" trend={{ value: `${stats.mySales.count} sales`, positive: true }} />
-        <StatCard label="My Commission (est.)" value={formatCurrency(stats.myCommission)} icon={Wallet} accent="success" />
       </div>
 
       <Card>

@@ -160,15 +160,11 @@ export async function getManagerDashboardStats() {
     }),
   ]);
 
-  // Commission is store-configurable; this is a simple 0.5% placeholder —
-  // wire up a real commission rate in Settings for production use.
-  const commissionRate = 0.005;
   const myMonthTotal = Number(mySales._sum.total ?? 0);
 
   return {
     todayStoreSales: { total: Number(todayTotal._sum.total ?? 0), count: todayTotal._count._all },
     mySales: { total: myMonthTotal, count: mySales._count._all },
-    myCommission: Math.round(myMonthTotal * commissionRate),
     recentSales,
   };
 }

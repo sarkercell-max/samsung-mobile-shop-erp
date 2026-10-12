@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
+import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import { Camera, X, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,10 +21,12 @@ interface ImeiScannerProps {
 export function ImeiScanner({ onScan, disabled }: ImeiScannerProps) {
   const [manualImei, setManualImei] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
+  const scanHandledRef = useRef(false);
 
   const stopCamera = useCallback(() => {
     controlsRef.current?.stop();
@@ -33,9 +36,13 @@ export function ImeiScanner({ onScan, disabled }: ImeiScannerProps) {
 
   const startCamera = useCallback(async () => {
     setCameraError(null);
+    setCameraReady(false);
     setCameraOpen(true);
+    scanHandledRef.current = false;
     try {
-      const reader = new BrowserMultiFormatReader();
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.QR_CODE, BarcodeFormat.DATA_MATRIX, BarcodeFormat.EAN_13]);
+      const reader = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 120, delayBetweenScanSuccess: 120 });
       readerRef.current = reader;
       const devices = await BrowserMultiFormatReader.listVideoInputDevices();
       const backCamera = devices.find((d) => /back|rear|environment/i.test(d.label)) ?? devices[0];
@@ -46,7 +53,8 @@ export function ImeiScanner({ onScan, disabled }: ImeiScannerProps) {
         backCamera?.deviceId,
         videoRef.current,
         (result) => {
-          if (result) {
+          if (result && !scanHandledRef.current) {
+            scanHandledRef.current = true;
             onScan(result.getText());
             stopCamera();
           }
@@ -88,9 +96,12 @@ export function ImeiScanner({ onScan, disabled }: ImeiScannerProps) {
 
       {cameraOpen && (
         <div className="relative overflow-hidden rounded-2xl border bg-black">
-          <video ref={videoRef} className="aspect-video w-full object-cover" muted playsInline />
+          <video ref={videoRef} onPlaying={() => setCameraReady(true)} className="aspect-video w-full object-cover" muted playsInline />
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <ScanLine className="h-10 w-10 animate-pulse text-white/70" />
+            <div className="flex flex-col items-center gap-2 rounded-xl bg-black/60 px-4 py-3 text-center text-sm font-medium text-white">
+              <ScanLine className="h-8 w-8 animate-pulse" />
+              <span>{cameraReady ? "বারকোড ফ্রেমের মধ্যে ধরুন" : "ক্যামেরা চালু হচ্ছে…"}</span>
+            </div>
           </div>
           <Button
             type="button"

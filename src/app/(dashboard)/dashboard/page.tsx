@@ -9,8 +9,12 @@ import {
 import Link from "next/link";
 import { getStockAnalytics } from "@/actions/reports.actions";
 import { StockOverview } from "@/components/shared/stock-overview";
+import { getCurrentUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 export default async function OwnerDashboardPage() {
+  const user = await getCurrentUser();
+  if (user.role !== "OWNER") redirect("/dashboard/manager");
   const [stats, stockAnalytics] = await Promise.all([getOwnerDashboardStats(), getStockAnalytics()]);
 
   return (

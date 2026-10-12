@@ -48,7 +48,8 @@ export function Sidebar({ role, storeName }: { role: "OWNER" | "MANAGER"; storeN
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {nav.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(item.href + "/");
+          // Keep sibling destinations such as /sales and /sales/new exclusive.
+          const active = pathname === item.href || (pathname.startsWith(item.href + "/") && !(item.href === "/sales" && pathname.startsWith("/sales/new")));
           const Icon = item.icon;
           return (
             <Link
