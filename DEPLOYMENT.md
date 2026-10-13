@@ -33,6 +33,10 @@ purchase numbering functions, and the duplicate-IMEI-sale trigger.
 > Run this only after `prisma migrate deploy` has created the tables —
 > Prisma owns table structure, this file owns RLS + triggers.
 
+For existing deployments, run `npm run db:migrate` after deploying this version.
+The migration makes the sale-item trigger claim inventory atomically; the
+application no longer marks a unit SOLD before inserting its sale item.
+
 ## 4. Seed demo data (optional but recommended for first run)
 
 ```bash

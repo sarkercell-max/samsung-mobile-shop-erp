@@ -186,10 +186,12 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if exists (
-    select 1 from inventory
-    where id = new."inventoryId" and status = 'SOLD'
-  ) then
+  -- Claim the unit atomically. Concurrent sale transactions serialize on
+  -- this row, and only the first can change AVAILABLE to SOLD.
+  update inventory
+    set status = 'SOLD', "updatedAt" = now()
+    where id = new."inventoryId" and status = 'AVAILABLE';
+  if not found then
     raise exception 'This IMEI has already been sold.';
   end if;
   return new;
@@ -201,18 +203,7 @@ create trigger trg_prevent_duplicate_imei_sale
   before insert on sale_items
   for each row execute function prevent_duplicate_imei_sale();
 
--- Automatically flip inventory status to SOLD when a sale_item is inserted
-create or replace function mark_inventory_sold()
-returns trigger
-language plpgsql
-as $$
-begin
-  update inventory set status = 'SOLD', "updatedAt" = now() where id = new."inventoryId";
-  return new;
-end;
-$$;
-
+-- Remove the older AFTER trigger; the BEFORE trigger now performs the
+-- atomic status transition as part of its availability check.
 drop trigger if exists trg_mark_inventory_sold on sale_items;
-create trigger trg_mark_inventory_sold
-  after insert on sale_items
-  for each row execute function mark_inventory_sold();
+drop function if exists mark_inventory_sold();
