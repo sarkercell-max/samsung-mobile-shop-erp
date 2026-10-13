@@ -15,7 +15,9 @@ import { InventoryStatus } from "@prisma/client";
 // ============================================================================
 export async function lookupImei(rawImei: string) {
   const user = await getCurrentUser();
-  const parsed = imeiLookupSchema.safeParse({ imei: rawImei });
+  // Permit only harmless barcode separators; preserve every digit and reject other barcode payloads.
+  const imei = typeof rawImei === "string" ? rawImei.trim().replace(/[\s-]/g, "") : "";
+  const parsed = imeiLookupSchema.safeParse({ imei });
 
   if (!parsed.success) {
     return { ok: false as const, error: "Invalid IMEI format." };
@@ -120,7 +122,10 @@ export async function lookupCustomer(rawPhone: string) {
 // ============================================================================
 export async function createSale(input: CreateSaleInput) {
   const user = await getCurrentUser();
-  const parsed = createSaleSchema.safeParse(input);
+  const normalizedInput = input && Array.isArray(input.imeis)
+    ? { ...input, imeis: input.imeis.map((imei) => typeof imei === "string" ? imei.trim().replace(/[\s-]/g, "") : imei) }
+    : input;
+  const parsed = createSaleSchema.safeParse(normalizedInput);
 
   if (!parsed.success) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input." };
@@ -128,7 +133,8 @@ export async function createSale(input: CreateSaleInput) {
 
   const data = parsed.data;
 
-  return prisma.$transaction(async (tx) => {
+  try {
+    return await prisma.$transaction(async (tx) => {
     // 1. Resolve / create the customer
     let customer = await tx.customer.findUnique({
       where: { storeId_phone: { storeId: user.storeId, phone: data.customerPhone } },
@@ -248,6 +254,16 @@ export async function createSale(input: CreateSaleInput) {
     `;
     const invoiceNumber = invoiceNumberResult[0]!.next_invoice_number;
 
+    // Atomically claim each physical unit before recording a sale. The status
+    // predicate is rechecked by PostgreSQL after any concurrent row lock wait.
+    const claimed = await tx.inventory.updateMany({
+      where: { id: { in: inventoryRows.map((row) => row.id) }, storeId: user.storeId, status: InventoryStatus.AVAILABLE },
+      data: { status: InventoryStatus.SOLD },
+    });
+    if (claimed.count !== inventoryRows.length) {
+      throw new Error("One or more phones are no longer available in this shop. Scan them again.");
+    }
+
     const sale = await tx.sale.create({
       data: {
         storeId: user.storeId,
@@ -278,8 +294,6 @@ export async function createSale(input: CreateSaleInput) {
       availableByProduct.set(row.productId, current - 1);
       await tx.stockMovement.create({ data: { storeId: user.storeId, productId: row.productId, inventoryId: row.id, movementType: "SALE", quantity: -1, previousStock: current, newStock: current - 1, referenceType: "Sale", referenceId: sale.id, batchId: (await tx.purchaseItem.findUnique({ where: { id: row.purchaseItemId }, select: { purchaseBatchId: true } }))?.purchaseBatchId, createdById: user.id } });
     }
-    await tx.inventory.updateMany({ where: { id: { in: inventoryRows.map((r) => r.id) } }, data: { status: InventoryStatus.SOLD } });
-
     // 6. Audit log
     await tx.auditLog.create({
       data: {
@@ -297,7 +311,10 @@ export async function createSale(input: CreateSaleInput) {
     revalidatePath("/inventory");
 
     return { ok: true as const, data: { saleId: sale.id, invoiceNumber: sale.invoiceNumber, total } };
-  });
+    });
+  } catch (error) {
+    return { ok: false as const, error: error instanceof Error ? error.message : "Could not complete the sale. Please try again." };
+  }
 }
 
 // ============================================================================
