@@ -254,16 +254,6 @@ export async function createSale(input: CreateSaleInput) {
     `;
     const invoiceNumber = invoiceNumberResult[0]!.next_invoice_number;
 
-    // Atomically claim each physical unit before recording a sale. The status
-    // predicate is rechecked by PostgreSQL after any concurrent row lock wait.
-    const claimed = await tx.inventory.updateMany({
-      where: { id: { in: inventoryRows.map((row) => row.id) }, storeId: user.storeId, status: InventoryStatus.AVAILABLE },
-      data: { status: InventoryStatus.SOLD },
-    });
-    if (claimed.count !== inventoryRows.length) {
-      throw new Error("One or more phones are no longer available in this shop. Scan them again.");
-    }
-
     const sale = await tx.sale.create({
       data: {
         storeId: user.storeId,
@@ -287,7 +277,8 @@ export async function createSale(input: CreateSaleInput) {
       include: { items: true, payments: true, customer: true },
     });
 
-    // 5. Record sequential stock levels and flip inventory status.
+    // 5. Record sequential stock levels. The sale-item DB trigger atomically
+    //    transitions each inventory row from AVAILABLE to SOLD.
     const availableByProduct = new Map<string, number>();
     for (const row of inventoryRows) {
       const current = availableByProduct.get(row.productId) ?? await tx.inventory.count({ where: { storeId: user.storeId, productId: row.productId, status: "AVAILABLE" } });
