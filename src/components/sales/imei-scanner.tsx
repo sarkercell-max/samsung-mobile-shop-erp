@@ -69,13 +69,17 @@ export function ImeiScanner({ onScan, disabled }: ImeiScannerProps) {
     }
   }, [closeCamera, onScan, stopCamera]);
 
-  const normalize = (value: string) => value.trim().replace(/[\s-]/g, "");
+  const normalize = (value: string) => value;
   const handleManualSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     const value = normalize(manualImei);
-    if (!value) return;
+    if (!/^[0-9]{15}$/.test(value)) {
+      setCameraError("IMEI must be exactly 15 digits.");
+      return;
+    }
     onScan(value);
     setManualImei("");
+    setCameraError(null);
   };
 
   return (
@@ -84,10 +88,11 @@ export function ImeiScanner({ onScan, disabled }: ImeiScannerProps) {
         <Camera className="h-5 w-5" /> Scan IMEI
       </Button>
       <form onSubmit={handleManualSubmit} className="flex gap-2">
-        <Input value={manualImei} onChange={(event) => setManualImei(event.target.value)}
-          placeholder="Or enter IMEI manually" inputMode="numeric" disabled={disabled} className="text-lg tracking-wide" />
-        <Button type="submit" disabled={disabled || !normalize(manualImei)}>Add</Button>
+        <Input value={manualImei} onChange={(event) => setManualImei(event.target.value.slice(0, 15))}
+          placeholder="Or enter IMEI manually" inputMode="numeric" maxLength={15} disabled={disabled} className="text-lg tracking-wide" />
+        <Button type="submit" disabled={disabled || !/^[0-9]{15}$/.test(manualImei)}>Add</Button>
       </form>
+      {manualImei.length > 0 && !/^[0-9]{15}$/.test(manualImei) && <p role="alert" className="text-sm text-destructive">IMEI must be exactly 15 digits.</p>}
       {cameraError && <p role="alert" className="text-sm text-destructive">{cameraError}</p>}
 
       <Dialog open={cameraOpen} onOpenChange={(open) => { if (!open) closeCamera(); }}>

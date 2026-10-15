@@ -35,7 +35,7 @@ export default async function ManagerDashboardPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {stats.recentSales.length === 0 && <p className="text-sm text-muted-foreground">No sales yet — tap "Sell" to start.</p>}
+          {stats.recentSales.length === 0 && <p className="text-sm text-muted-foreground">No sales yet — tap &quot;Sell&quot; to start.</p>}
           {stats.recentSales.map((sale) => (
             <div key={sale.id} className="flex items-center justify-between rounded-lg border p-3">
               <div>

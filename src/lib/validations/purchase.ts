@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { imeiSchema } from "@/lib/validations/imei";
 
 export const purchaseItemSchema = z.object({
   productId: z.string().uuid(),
-  imei: z.string().regex(/^\d{14,17}$/, "Invalid IMEI"),
+  imei: imeiSchema,
   buyingPrice: z.coerce.number().positive(),
   sellingPrice: z.coerce.number().positive().optional(), // defaults to product price
   warrantyMonths: z.coerce.number().int().min(0).default(12),

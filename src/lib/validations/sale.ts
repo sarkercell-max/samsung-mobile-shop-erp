@@ -1,19 +1,5 @@
 import { z } from "zod";
-
-function hasValidImeiCheckDigit(value: string) {
-  if (value.length !== 15) return true; // 14 digit IMEISV and legacy 16/17 digit inventory codes are matched exactly.
-  const digits = [...value].map(Number);
-  const sum = digits.slice(0, 14).reduce((total, digit, index) => {
-    if (index % 2 === 1) {
-      const doubled = digit * 2;
-      return total + Math.floor(doubled / 10) + (doubled % 10);
-    }
-    return total + digit;
-  }, 0);
-  return (10 - (sum % 10)) % 10 === digits[14];
-}
-
-const imeiSchema = z.string().regex(/^\d{14,17}$/, "Enter a 14–17 digit IMEI").refine(hasValidImeiCheckDigit, "IMEI check digit is invalid");
+import { imeiSchema } from "@/lib/validations/imei";
 
 export const createSaleSchema = z.object({
   // The ONLY two fields the manager must fill in by hand.

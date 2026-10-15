@@ -60,3 +60,14 @@
     display: none !important;
   }
 }
+
+/* Keep every dashboard grid in a single column on phones. Data tables retain
+   their local overflow-x-auto wrappers so only the table scrolls. */
+@media (max-width: 639px) {
+  main .grid { grid-template-columns: minmax(0, 1fr) !important; }
+  main [class*="col-span-"] { grid-column: 1 / -1 !important; }
+  main, main * { min-width: 0; }
+  main :where(p, span, a, td, th, h1, h2, h3) { overflow-wrap: anywhere; }
+  main .flex { flex-wrap: wrap; }
+  main form > label { display: block; }
+}

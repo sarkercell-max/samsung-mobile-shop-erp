@@ -8,6 +8,7 @@ import {
 } from "@/lib/validations/purchase";
 import { revalidatePath } from "next/cache";
 import { Prisma, InventoryStatus } from "@prisma/client";
+import { isValidImei } from "@/lib/validations/imei";
 
 /**
  * Receives a new purchase batch from the Samsung distributor and imports
@@ -204,8 +205,8 @@ export async function checkPurchaseImportImeis(imeis: string[]) {
 
 export async function createPurchaseBatchFromImport(input: CreatePurchaseBatchInput) {
   const user = await requireOwner();
-  if (!Array.isArray(input?.items) || input.items.length > 5000 || input.items.some((item) => !/^\d{15}$/.test(item.imei))) {
-    return { ok: false as const, error: "Purchase import IMEIs must contain exactly 15 digits (maximum 5,000 rows)." };
+  if (!input || !Array.isArray(input.items) || input.items.length > 5000 || input.items.some((item) => !item || !isValidImei(item.imei))) {
+    return { ok: false as const, error: "IMEI must be exactly 15 digits. Purchase imports support up to 5,000 rows." };
   }
   const duplicateBatch = await prisma.purchaseBatch.findFirst({ where: { storeId: user.storeId, batchNumber: input.batchNumber.trim(), status: "RECEIVED" } });
   if (duplicateBatch) return { ok: false as const, error: `Purchase batch ${input.batchNumber} already exists in this store.` };

@@ -16,11 +16,11 @@ import { InventoryStatus } from "@prisma/client";
 export async function lookupImei(rawImei: string) {
   const user = await getCurrentUser();
   // Permit only harmless barcode separators; preserve every digit and reject other barcode payloads.
-  const imei = typeof rawImei === "string" ? rawImei.trim().replace(/[\s-]/g, "") : "";
+  const imei = typeof rawImei === "string" ? rawImei : "";
   const parsed = imeiLookupSchema.safeParse({ imei });
 
   if (!parsed.success) {
-    return { ok: false as const, error: "Invalid IMEI format." };
+    return { ok: false as const, error: "IMEI must be exactly 15 digits." };
   }
 
   const record = await inventoryRepository.findByImei(user.storeId, parsed.data.imei);
@@ -122,9 +122,7 @@ export async function lookupCustomer(rawPhone: string) {
 // ============================================================================
 export async function createSale(input: CreateSaleInput) {
   const user = await getCurrentUser();
-  const normalizedInput = input && Array.isArray(input.imeis)
-    ? { ...input, imeis: input.imeis.map((imei) => typeof imei === "string" ? imei.trim().replace(/[\s-]/g, "") : imei) }
-    : input;
+  const normalizedInput = input;
   const parsed = createSaleSchema.safeParse(normalizedInput);
 
   if (!parsed.success) {

@@ -12,7 +12,7 @@ export async function parseImportFile(file: File): Promise<ParsedSheet> {
   const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: "" });
   const columns = (matrix[0] ?? []).map((v, i) => String(v ?? "").trim() || `Column ${i + 1}`);
   if (!columns.length) throw new Error("The first worksheet has no header row.");
-  const rows = matrix.slice(1).map((values) => Object.fromEntries(columns.map((column, i) => [column, String(values?.[i] ?? "").trim()]))).filter((row) => Object.values(row).some(Boolean));
+  const rows = matrix.slice(1).map((values) => Object.fromEntries(columns.map((column, i) => [column, String(values?.[i] ?? "")]))).filter((row) => Object.values(row).some(Boolean));
   if (rows.length > 5000) throw new Error("Maximum file size is 5,000 data rows.");
   if (!rows.length) throw new Error("No data rows were found below the header.");
   return { columns, rows };

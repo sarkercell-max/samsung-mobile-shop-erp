@@ -236,7 +236,7 @@ export default function NewPurchasePage() {
             {rows.map((row, idx) => (
               <div
                 key={idx}
-                className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2 rounded-xl border p-2"
+                className="grid grid-cols-1 items-end gap-2 rounded-xl border p-2 sm:grid-cols-[1fr_1fr_1fr_auto]"
               >
                 <div>
                   <Label className="text-xs">
@@ -277,17 +277,9 @@ export default function NewPurchasePage() {
                   <Input
                     className="mt-1 h-10"
                     value={row.imei}
-                    onChange={(e) =>
-                      updateRow(
-                        idx,
-                        "imei",
-                        e.target.value.replace(
-                          /\D/g,
-                          ""
-                        )
-                      )
-                    }
-                    maxLength={17}
+                    onChange={(e) => updateRow(idx, "imei", e.target.value.slice(0, 15))}
+                    inputMode="numeric"
+                    maxLength={15}
                     required
                   />
                 </div>

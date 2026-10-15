@@ -34,7 +34,7 @@ export function formatDateTime(date: Date | string) {
 
 /** Basic Luhn-style length/format sanity check for a 15-digit IMEI. */
 export function isValidImeiFormat(imei: string) {
-  return /^\d{14,17}$/.test(imei.trim());
+  return /^[0-9]{15}$/.test(imei);
 }
 
 export function isValidBdPhone(phone: string) {
