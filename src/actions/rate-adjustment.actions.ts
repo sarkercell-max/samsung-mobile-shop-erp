@@ -16,7 +16,7 @@ export async function getSaleRateComparison(saleItemId: string) {
     prisma.promotion.findFirst({ where: { productId: item.productId, isActive: true, startDate: { lte: new Date() }, endDate: { gte: new Date() } }, orderBy: { startDate: "desc" } }),
   ]);
   return { ok: true as const, data: {
-    saleId: item.saleId, invoiceNumber: item.sale.invoiceNumber, saleTotal: Number(item.sale.total), saleProfit: Number(item.sale.totalProfit), product: `${item.product.model} · ${item.product.ram}/${item.product.storageCapacity} · ${item.product.color}`,
+    saleId: item.saleId, invoiceNumber: item.sale.invoiceNumber, saleTotal: Number(item.sale.total), saleProfit: Number(item.sale.totalProfit), product: item.product.productName,
     old: { purchase: Number(item.buyingPrice), sale: Number(item.sellingPrice), promotion: Number(item.promoAmount) },
     current: { purchase: Number(period?.purchasePrice ?? item.product.defaultBuyingPrice ?? item.buyingPrice), sale: Number(period?.salePrice ?? item.product.defaultSellingPrice), promotion: Number(promotion?.promoAmount ?? 0) },
   } };
@@ -63,7 +63,7 @@ export async function getPurchaseRateComparison(purchaseItemId: string) {
   const item = await prisma.purchaseItem.findFirst({ where: { id: purchaseItemId, purchaseBatch: { storeId: user.storeId, status: "RECEIVED" } }, include: { product: true, purchaseBatch: true } });
   if (!item) return { ok: false as const, error: "Purchase item not found." };
   const period = await prisma.productPriceHistory.findFirst({ where: { productId: item.productId, effectiveTo: null }, orderBy: { effectiveFrom: "desc" } });
-  return { ok: true as const, data: { old: Number(item.buyingPrice), current: Number(period?.purchasePrice ?? item.product.defaultBuyingPrice ?? item.buyingPrice), purchaseNumber: item.purchaseBatch.purchaseNumber, product: `${item.product.model} · ${item.product.ram}/${item.product.storageCapacity}`, imei: item.imei } };
+  return { ok: true as const, data: { old: Number(item.buyingPrice), current: Number(period?.purchasePrice ?? item.product.defaultBuyingPrice ?? item.buyingPrice), purchaseNumber: item.purchaseBatch.purchaseNumber, product: item.product.productName, imei: item.imei } };
 }
 
 export async function applyPurchaseUpdatedRate(purchaseItemId: string) {

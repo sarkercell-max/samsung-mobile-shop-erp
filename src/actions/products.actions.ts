@@ -16,11 +16,11 @@ export async function createProduct(input: CreateProductInput) {
   const parsed = createProductSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input." };
 
-  const existing = await prisma.product.findUnique({ where: { sku: parsed.data.sku } });
-  if (existing) return { ok: false as const, error: "SKU already exists." };
+  const existing = await prisma.product.findFirst({ where: { storeId: user.storeId, productName: parsed.data.productName } });
+  if (existing) return { ok: false as const, error: "This product already exists." };
 
   const product = await prisma.$transaction(async (tx) => {
-    const created = await tx.product.create({ data: { ...parsed.data, storeId: user.storeId } });
+    const created = await tx.product.create({ data: { ...parsed.data, sku: `AUTO-${crypto.randomUUID()}`, storeId: user.storeId } });
     await tx.productPriceHistory.create({
       data: {
         storeId: user.storeId,
@@ -65,14 +65,13 @@ export async function exportProducts(ids?: string[]) {
   });
   await prisma.auditLog.create({ data: { storeId: user.storeId, userId: user.id, action: "product.export", entityType: "Product", metadata: { count: rows.length, selected: Boolean(ids?.length) } } });
   return rows.map((p) => ({
-    SKU: p.sku, Brand: p.brand, Model: p.model, RAM: p.ram, Storage: p.storageCapacity,
-    Color: p.color, Barcode: p.barcode ?? "", "Purchase Price": p.priceHistory[0]?.purchasePrice.toString() ?? "",
+    "Product Name": p.productName, "Model Name": p.model, Barcode: p.barcode ?? "", "Purchase Price": p.priceHistory[0]?.purchasePrice.toString() ?? "",
     "Sale Price": p.priceHistory[0]?.salePrice.toString() ?? "", Status: p.isActive ? "Active" : "Archived",
     "Minimum Stock": p.minimumStock,
   }));
 }
 
-export type ProductImportRow = { rowNumber: number; brand: string; model: string; ram: string; storageCapacity: string; color: string; sku: string; barcode?: string; defaultBuyingPrice: number; defaultSellingPrice: number };
+export type ProductImportRow = { rowNumber: number; brand: string; productName: string; model: string; barcode?: string; defaultBuyingPrice: number; defaultSellingPrice: number };
 
 /** Revalidates every imported value and writes only product master data. */
 export async function importProducts(rows: ProductImportRow[], mode: "create" | "update" | "both") {
@@ -82,34 +81,34 @@ export async function importProducts(rows: ProductImportRow[], mode: "create" | 
   if (!rows.length) return { ok: false as const, error: "No valid rows to import." };
   if (rows.some((r) => !r || typeof r !== "object" || Object.values(r).some((v) => typeof v === "string" && v.length > 500))) return { ok: false as const, error: "An imported field is too long." };
   const created: string[] = [], updated: string[] = [];
-  const globalRateChanges: Array<{ productId: string; sku: string; oldValues: { purchasePrice: number; salePrice: number } | null; newValues: { purchasePrice: number; salePrice: number }; effectiveFrom: Date }> = [];
+  const globalRateChanges: Array<{ productId: string; model: string; oldValues: { purchasePrice: number; salePrice: number } | null; newValues: { purchasePrice: number; salePrice: number }; effectiveFrom: Date }> = [];
   try {
     await prisma.$transaction(async (tx) => {
       for (const row of rows) {
         const parsed = createProductSchema.safeParse({ ...row, brand: row.brand || "Samsung" });
         if (!parsed.success) throw new Error(`Row ${row.rowNumber}: ${parsed.error.issues[0]?.message ?? "Invalid product."}`);
         const data = parsed.data;
-        const existing = await tx.product.findUnique({ where: { sku: data.sku } });
-        if (existing && mode === "create") throw new Error(`Row ${row.rowNumber}: SKU ${data.sku} already exists.`);
-        if (!existing && mode === "update") throw new Error(`Row ${row.rowNumber}: SKU ${data.sku} was not found for update.`);
+        const existing = await tx.product.findFirst({ where: { storeId: user.storeId, productName: data.productName } });
+        if (existing && mode === "create") throw new Error(`Row ${row.rowNumber}: Product already exists.`);
+        if (!existing && mode === "update") throw new Error(`Row ${row.rowNumber}: Product was not found for update.`);
         if (existing) {
           const current = await tx.productPriceHistory.findFirst({ where: { productId: existing.id, effectiveTo: null }, orderBy: { effectiveFrom: "desc" } });
-          await tx.product.update({ where: { id: existing.id }, data: { brand: data.brand, model: data.model, ram: data.ram, storageCapacity: data.storageCapacity, color: data.color, barcode: data.barcode || null } });
+          await tx.product.update({ where: { id: existing.id }, data: { brand: data.brand, productName: data.productName, model: data.model, barcode: data.barcode || null } });
           if (!current || Number(current.purchasePrice) !== data.defaultBuyingPrice || Number(current.salePrice) !== data.defaultSellingPrice) {
             const effectiveFrom = new Date();
             if (current && effectiveFrom <= current.effectiveFrom) effectiveFrom.setTime(current.effectiveFrom.getTime() + 1000);
-            globalRateChanges.push({ productId: existing.id, sku: data.sku, oldValues: current ? { purchasePrice: Number(current.purchasePrice), salePrice: Number(current.salePrice) } : null, newValues: { purchasePrice: data.defaultBuyingPrice, salePrice: data.defaultSellingPrice }, effectiveFrom });
+            globalRateChanges.push({ productId: existing.id, model: data.model, oldValues: current ? { purchasePrice: Number(current.purchasePrice), salePrice: Number(current.salePrice) } : null, newValues: { purchasePrice: data.defaultBuyingPrice, salePrice: data.defaultSellingPrice }, effectiveFrom });
             if (current) await tx.productPriceHistory.update({ where: { id: current.id }, data: { effectiveTo: effectiveFrom } });
             await tx.productPriceHistory.create({ data: { storeId: existing.storeId, productId: existing.id, purchasePrice: data.defaultBuyingPrice, salePrice: data.defaultSellingPrice, effectiveFrom, createdById: user.id } });
             await tx.product.update({ where: { id: existing.id }, data: { defaultBuyingPrice: data.defaultBuyingPrice, defaultSellingPrice: data.defaultSellingPrice } });
           }
-          updated.push(data.sku);
+          updated.push(data.productName);
         } else {
-          const createdProduct = await tx.product.create({ data: { ...data, storeId: user.storeId } });
+          const createdProduct = await tx.product.create({ data: { ...data, sku: `AUTO-${crypto.randomUUID()}`, storeId: user.storeId } });
           const effectiveFrom = new Date();
           await tx.productPriceHistory.create({ data: { storeId: user.storeId, productId: createdProduct.id, purchasePrice: data.defaultBuyingPrice, salePrice: data.defaultSellingPrice, effectiveFrom, createdById: user.id } });
-          globalRateChanges.push({ productId: createdProduct.id, sku: data.sku, oldValues: null, newValues: { purchasePrice: data.defaultBuyingPrice, salePrice: data.defaultSellingPrice }, effectiveFrom });
-          created.push(data.sku);
+          globalRateChanges.push({ productId: createdProduct.id, model: data.model, oldValues: null, newValues: { purchasePrice: data.defaultBuyingPrice, salePrice: data.defaultSellingPrice }, effectiveFrom });
+          created.push(data.productName);
         }
       }
       await tx.auditLog.create({ data: { storeId: user.storeId, userId: user.id, action: "product.import", entityType: "Product", metadata: { created: created.length, updated: updated.length, globalRateChanges } } });
@@ -169,7 +168,7 @@ export async function deleteProductIfUnused(productId: string) {
     await tx.productPriceHistory.deleteMany({ where: { productId } });
     await tx.product.delete({ where: { id: productId } });
     await tx.auditLog.create({
-      data: { storeId: user.storeId, userId: user.id, action: "product.delete", entityType: "Product", entityId: productId, metadata: { sku: product.sku, model: product.model } },
+      data: { storeId: user.storeId, userId: user.id, action: "product.delete", entityType: "Product", entityId: productId, metadata: { model: product.model } },
     });
   });
 

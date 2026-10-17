@@ -19,7 +19,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Products</h1>
-        <div className="flex gap-2">{user.role === "OWNER" && <><Button asChild size="sm" variant="outline"><Link href="/products/import"><Upload className="mr-1 h-4 w-4"/>Import</Link></Button><ProductExport products={products.map(p=>({id:p.id,label:`${p.model} · ${p.sku}`}))}/><Button asChild size="sm" variant="outline"><Link href={showArchived ? "/products" : "/products?showArchived=true"}>{showArchived ? "Hide archived" : "Show archived"}</Link></Button></>}<Button asChild size="sm"><Link href="/products/new"><Plus className="mr-1 h-4 w-4" /> Add Product</Link></Button></div>
+        <div className="flex gap-2">{user.role === "OWNER" && <><Button asChild size="sm" variant="outline"><Link href="/products/import"><Upload className="mr-1 h-4 w-4"/>Import</Link></Button><ProductExport products={products.map(p=>({id:p.id,label:p.productName}))}/><Button asChild size="sm" variant="outline"><Link href={showArchived ? "/products" : "/products?showArchived=true"}>{showArchived ? "Hide archived" : "Show archived"}</Link></Button></>}<Button asChild size="sm"><Link href="/products/new"><Plus className="mr-1 h-4 w-4" /> Add Product</Link></Button></div>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {products.map((p) => (
@@ -27,9 +27,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
             <CardContent className="p-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="font-medium">{p.model}</p>
-                  <p className="text-sm text-muted-foreground">{p.ram} / {p.storageCapacity} · {p.color}</p>
-                  <p className="text-xs text-muted-foreground">SKU: {p.sku}</p>
+                  <p className="font-medium">{p.productName}</p>
+                  <p className="text-sm text-muted-foreground">Model: {p.model}</p>
                 </div>
                 {!p.isActive && <Badge variant="secondary">Archived</Badge>}
               </div>

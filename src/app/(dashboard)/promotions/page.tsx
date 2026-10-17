@@ -22,14 +22,14 @@ export default async function PromotionsPage() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">{p.product.model}</p>
+                  <p className="font-medium">{p.product.productName} / {p.product.model}</p>
                   <p className="text-sm text-muted-foreground">{formatDate(p.startDate)} – {formatDate(p.endDate)}</p>
                   <Badge variant={p.isActive ? "success" : "secondary"} className="mt-1">{p.promoType}</Badge>
                 </div>
                 <p className="font-semibold">{formatCurrency(Number(p.promoAmount))}</p>
               </div>
               <div className="mt-3">
-                <PromotionActions promotionId={p.id} model={p.product.model} isActive={p.isActive} />
+                <PromotionActions promotionId={p.id} model={p.product.productName} isActive={p.isActive} />
               </div>
             </CardContent>
           </Card>

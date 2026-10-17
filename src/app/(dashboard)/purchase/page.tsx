@@ -37,7 +37,7 @@ export default async function PurchasePage() {
                 <p className="text-sm">{b.items.length} units · {formatCurrency(total)} {soldCount > 0 && `· ${soldCount} sold`}</p>
                 {b.status === "RECEIVED" && <div className="mt-3 space-y-2 border-t pt-3"><p className="text-xs font-medium text-muted-foreground">Purchase item rates</p>{b.items.map((item) => (
                   <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <span>{item.product.model} · {item.imei} · {formatCurrency(Number(item.buyingPrice))}</span>
+                    <span>{item.product.productName} · {item.imei} · {formatCurrency(Number(item.buyingPrice))}</span>
                     <TransactionRateAdjustment type="purchase" itemId={item.id} />
                   </div>
                 ))}</div>}

@@ -5,6 +5,7 @@ export const createPromotionSchema = z.object({
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
   productId: z.string().uuid(),
+  applyToModel: z.boolean().optional().default(false),
   promoAmount: z.coerce.number().positive(),
   promoType: z.enum(["CASHBACK", "GIFT", "DEALER_INCENTIVE"]),
 });

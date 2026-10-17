@@ -170,10 +170,8 @@ model Product {
   storeId            String
   store              Store    @relation(fields: [storeId], references: [id])
   brand              String   @default("Samsung")
-  model              String // e.g. "Galaxy S24 Ultra"
-  ram                String // e.g. "12GB"
-  storageCapacity    String // e.g. "256GB"  (renamed from `storage` — reserved word risk)
-  color              String
+  productName        String
+  model              String // Model Name, e.g. "Galaxy S24 Ultra"
   sku                String   @unique
   barcode            String?  @unique
   defaultSellingPrice Decimal @db.Decimal(12, 2) // denormalized cache of the CURRENT active ProductPriceHistory.salePrice — never the source of truth
@@ -192,7 +190,7 @@ model Product {
   stockMovements StockMovement[]
   minimumStock Int @default(5)
 
-  @@unique([storeId, model, ram, storageCapacity, color])
+  @@unique([storeId, productName])
   @@index([storeId])
   @@index([model])
   @@map("products")

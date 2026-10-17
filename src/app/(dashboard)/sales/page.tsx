@@ -30,7 +30,7 @@ export default async function SalesPage() {
                     <Badge variant={sale.status === "COMPLETED" ? "success" : "destructive"}>{sale.status}</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {sale.customer.name} · {sale.items.map((i: any) => i.product?.model ?? "").join(", ")}
+                    {sale.customer.name} · {sale.items.map((i: any) => i.product?.productName ?? "").join(", ")}
                   </p>
                   <p className="text-xs text-muted-foreground">{formatDateTime(sale.createdAt)}{sale.soldBy ? ` · ${sale.soldBy.name}` : ""}</p>
                 </div>

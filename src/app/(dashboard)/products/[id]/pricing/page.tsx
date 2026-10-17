@@ -16,8 +16,8 @@ export default async function ProductPricingPage({ params }: { params: Promise<{
   return (
     <div className="mx-auto max-w-lg space-y-4">
       <div>
-        <h1 className="text-xl font-semibold">{product.model}</h1>
-        <p className="text-sm text-muted-foreground">{product.ram} / {product.storageCapacity} · {product.color}</p>
+        <h1 className="text-xl font-semibold">{product.productName}</h1>
+        <p className="text-sm text-muted-foreground">Model: {product.model}</p>
       </div>
       <PricingManager productId={product.id} history={history} />
     </div>

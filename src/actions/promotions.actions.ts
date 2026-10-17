@@ -12,12 +12,20 @@ export async function createPromotion(input: CreatePromotionInput) {
 
   const product = await prisma.product.findUnique({ where: { id: parsed.data.productId } });
   if (!product) return { ok: false as const, error: "Product not found." };
+  const modelName = product.model.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  const targets = parsed.data.applyToModel
+    ? await prisma.product.findMany({ where: { model: { startsWith: `${modelName} (` }, storeId: product.storeId, deletedAt: null, isActive: true }, select: { id: true } })
+    : [{ id: product.id }];
   const promo = await prisma.$transaction(async (tx) => {
-    const overlapping = await tx.promotion.findMany({ where: { productId: product.id, isActive: true, startDate: { lte: parsed.data.endDate }, endDate: { gte: parsed.data.startDate } } });
+    const overlapping = await tx.promotion.findMany({ where: { productId: { in: targets.map((target) => target.id) }, isActive: true, startDate: { lte: parsed.data.endDate }, endDate: { gte: parsed.data.startDate } } });
     await tx.promotion.updateMany({ where: { id: { in: overlapping.map((row) => row.id) } }, data: { isActive: false } });
-    const created = await tx.promotion.create({ data: { ...parsed.data, storeId: product.storeId } });
+    const createdRows = await Promise.all(targets.map((target) => tx.promotion.create({ data: {
+      month: parsed.data.month, startDate: parsed.data.startDate, endDate: parsed.data.endDate,
+      productId: target.id, promoAmount: parsed.data.promoAmount, promoType: parsed.data.promoType, storeId: product.storeId,
+    } })));
+    const created = createdRows[0]!;
     await tx.auditLog.create({ data: { storeId: user.storeId, userId: user.id, action: "global_promotion_update", entityType: "Promotion", entityId: created.id, metadata: {
-      type: "Global Promotion Update", productId: product.id,
+      type: "Global Promotion Update", productId: product.id, applyToModel: parsed.data.applyToModel, affectedVariantCount: targets.length,
       oldValues: overlapping.map((row) => ({ promotionId: row.id, promoAmount: Number(row.promoAmount), promoType: row.promoType })),
       newValues: { promoAmount: parsed.data.promoAmount, promoType: parsed.data.promoType }, effectiveFrom: parsed.data.startDate,
     } } });

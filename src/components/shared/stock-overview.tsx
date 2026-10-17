@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { getStockAnalytics } from "@/actions/reports.actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Package, ShoppingCart, TrendingDown } from "lucide-react";
 
 type Analytics = Awaited<ReturnType<typeof getStockAnalytics>>;
 type View = "today" | "daily" | "weekly" | "monthly" | "custom";
+type SortBy = "period" | "purchased" | "sold" | "stock" | "value";
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const parse = (s: string) => new Date(`${s}T00:00:00`);
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(),d.getMonth(),d.getDate()+n);
@@ -36,6 +37,7 @@ function summarize(data: Analytics, view: View) {
 
 export function StockOverview({ initialData }: { initialData: Analytics }) {
   const [data,setData]=useState(initialData),[view,setView]=useState<View>("daily"),[from,setFrom]=useState(initialData.range.from),[to,setTo]=useState(initialData.range.to),[pending,startTransition]=useTransition();
+  const [sortBy,setSortBy]=useState<SortBy>("period"),[sortDirection,setSortDirection]=useState<"asc"|"desc">("asc");
   const load=(next:View,start?:string,end?:string)=>startTransition(async()=>{
     const today=new Date(),todayStart=new Date(today.getFullYear(),today.getMonth(),today.getDate());
     let a=todayStart,b=addDays(todayStart,1);
@@ -46,13 +48,35 @@ export function StockOverview({ initialData }: { initialData: Analytics }) {
     const result=await getStockAnalytics({from:iso(a),to:iso(addDays(b,-1))});setData(result);setFrom(result.range.from);setTo(result.range.to);setView(next);
   });
   const rows=summarize(data,view);
+  const sortedRows=useMemo(()=>[...rows].sort((a,b)=>{
+    let difference:number;
+    if(sortBy==="period"){
+      const periodDate=(label:string)=>view==="monthly"?new Date(`${label} 1`).getTime():parse(label.slice(0,10)).getTime();
+      difference=periodDate(a.label)-periodDate(b.label);
+    } else difference=a[sortBy]-b[sortBy];
+    return sortDirection==="asc"?difference:-difference;
+  }),[rows,sortBy,sortDirection,view]);
   const cards=[["Total Current Stock",`${data.totalStock} Pcs`,Package],["Today's Purchase",`${data.todayPurchaseQty} Pcs`,ShoppingCart],["Today's Sold",`${data.todaySold} Pcs`,TrendingDown]] as const;
   return <div className="space-y-4">
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">{cards.map(([label,value,Icon])=><Card key={label}><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle><Icon className="h-4 w-4 text-muted-foreground"/></CardHeader><CardContent><p className="text-lg font-semibold">{value}</p></CardContent></Card>)}</div>
     <Card><CardHeader><CardTitle>Stock Summary</CardTitle></CardHeader><CardContent className="space-y-3">
       <div className="flex flex-wrap gap-2">{(["today","daily","weekly","monthly","custom"] as View[]).map(v=><Button key={v} size="sm" variant={view===v?"default":"outline"} onClick={()=>v==="custom"?setView(v):load(v)}>{v[0]!.toUpperCase()+v.slice(1)}</Button>)}</div>
       {view==="custom"&&<div className="flex flex-wrap items-end gap-2"><label className="text-xs text-muted-foreground">From Date<Input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label className="text-xs text-muted-foreground">To Date<Input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><Button size="sm" onClick={()=>load("custom",from,to)}>Apply</Button></div>}
-      <div className="overflow-x-auto"><table className="w-full min-w-[460px] text-sm"><thead><tr className="border-y bg-muted/40 text-left"><th className="p-3">{view==="today"||view==="daily"||view==="custom"?"Date":view==="weekly"?"Week":"Month"}</th><th className="p-3 text-right">Purchase Qty</th><th className="p-3 text-right">Sold Qty</th><th className="p-3 text-right">Stock Qty</th>{view==="monthly"&&<th className="p-3 text-right">Stock Value</th>}</tr></thead><tbody>{rows.map(r=><tr key={r.label} className="border-b"><td className="p-3">{r.label}</td><td className="p-3 text-right">{r.purchased}</td><td className="p-3 text-right">{r.sold}</td><td className="p-3 text-right font-medium">{r.stock}</td>{view==="monthly"&&<td className="p-3 text-right">{formatCurrency(r.value)}</td>}</tr>)}{rows.length===0&&<tr><td colSpan={view==="monthly"?5:4} className="p-5 text-center text-muted-foreground">No stock activity for this date range.</td></tr>}</tbody></table></div>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-sm text-muted-foreground">Sort by
+          <select className="ml-2 h-9 rounded-md border bg-background px-2 text-foreground" value={sortBy} onChange={e=>setSortBy(e.target.value as SortBy)}>
+            <option value="period">{view==="today"||view==="daily"||view==="custom"?"Date":view==="weekly"?"Week":"Month"}</option>
+            <option value="purchased">Purchase Qty</option><option value="sold">Sold Qty</option><option value="stock">Stock Qty</option>
+            {view==="monthly"&&<option value="value">Stock Value</option>}
+          </select>
+        </label>
+        <label className="text-sm text-muted-foreground">Order
+          <select className="ml-2 h-9 rounded-md border bg-background px-2 text-foreground" value={sortDirection} onChange={e=>setSortDirection(e.target.value as "asc"|"desc")}>
+            <option value="asc">Ascending</option><option value="desc">Descending</option>
+          </select>
+        </label>
+      </div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[460px] text-sm"><thead><tr className="border-y bg-muted/40 text-left"><th className="p-3">{view==="today"||view==="daily"||view==="custom"?"Date":view==="weekly"?"Week":"Month"}</th><th className="p-3 text-right">Purchase Qty</th><th className="p-3 text-right">Sold Qty</th><th className="p-3 text-right">Stock Qty</th>{view==="monthly"&&<th className="p-3 text-right">Stock Value</th>}</tr></thead><tbody>{sortedRows.map(r=><tr key={r.label} className="border-b"><td className="p-3">{r.label}</td><td className="p-3 text-right">{r.purchased}</td><td className="p-3 text-right">{r.sold}</td><td className="p-3 text-right font-medium">{r.stock}</td>{view==="monthly"&&<td className="p-3 text-right">{formatCurrency(r.value)}</td>}</tr>)}{sortedRows.length===0&&<tr><td colSpan={view==="monthly"?5:4} className="p-5 text-center text-muted-foreground">No stock activity for this date range.</td></tr>}</tbody></table></div>
       {pending&&<p className="text-xs text-muted-foreground">Updating stock summary…</p>}
     </CardContent></Card>
   </div>;

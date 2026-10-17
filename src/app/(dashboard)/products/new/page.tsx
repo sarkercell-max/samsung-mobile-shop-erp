@@ -19,11 +19,8 @@ export default function NewProductPage() {
   const [pending, startTransition] = useTransition();
 
   const [form, setForm] = useState({
+    productName: "",
     model: "",
-    ram: "",
-    storageCapacity: "",
-    color: "",
-    sku: "",
     defaultBuyingPrice: "",
     defaultSellingPrice: "",
   });
@@ -41,11 +38,8 @@ export default function NewProductPage() {
     startTransition(async () => {
       const res = await createProduct({
         brand: "Samsung",
+        productName: form.productName,
         model: form.model,
-        ram: form.ram,
-        storageCapacity: form.storageCapacity,
-        color: form.color,
-        sku: form.sku,
         defaultBuyingPrice: Number(form.defaultBuyingPrice),
         defaultSellingPrice: Number(form.defaultSellingPrice),
       });
@@ -70,58 +64,22 @@ export default function NewProductPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <Label>Model</Label>
+              <Label>Product Name</Label>
+              <Input
+                className="mt-1.5"
+                value={form.productName}
+                onChange={(e) => update("productName", e.target.value)}
+                placeholder="Galaxy A08 (4/64 GB) DARK BLUE"
+                required
+              />
+            </div>
+            <div>
+              <Label>Model Name</Label>
               <Input
                 className="mt-1.5"
                 value={form.model}
                 onChange={(e) => update("model", e.target.value)}
-                placeholder="Galaxy S24 Ultra"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>RAM</Label>
-                <Input
-                  className="mt-1.5"
-                  value={form.ram}
-                  onChange={(e) => update("ram", e.target.value)}
-                  placeholder="12GB"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label>Storage</Label>
-                <Input
-                  className="mt-1.5"
-                  value={form.storageCapacity}
-                  onChange={(e) =>
-                    update("storageCapacity", e.target.value)
-                  }
-                  placeholder="256GB"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label>Color</Label>
-              <Input
-                className="mt-1.5"
-                value={form.color}
-                onChange={(e) => update("color", e.target.value)}
-                required
-              />
-            </div>
-
-            <div>
-              <Label>SKU</Label>
-              <Input
-                className="mt-1.5"
-                value={form.sku}
-                onChange={(e) => update("sku", e.target.value)}
+                placeholder="Galaxy A08"
                 required
               />
             </div>

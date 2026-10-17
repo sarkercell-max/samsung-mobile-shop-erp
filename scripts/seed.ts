@@ -65,24 +65,22 @@ async function main() {
 
   // --- Products ----------------------------------------------------------
   const productDefs = [
-    { model: "Galaxy S24 Ultra", ram: "12GB", storageCapacity: "256GB", color: "Titanium Black", price: 169999 },
-    { model: "Galaxy S24 Ultra", ram: "12GB", storageCapacity: "512GB", color: "Titanium Gray", price: 189999 },
-    { model: "Galaxy Z Flip6", ram: "12GB", storageCapacity: "256GB", color: "Mint", price: 139999 },
-    { model: "Galaxy A55", ram: "8GB", storageCapacity: "128GB", color: "Awesome Navy", price: 44999 },
-    { model: "Galaxy A15", ram: "4GB", storageCapacity: "128GB", color: "Blue Black", price: 18999 },
+    { productName: "Galaxy S24 Ultra (12/256 GB) TITANIUM BLACK", model: "Galaxy S24 Ultra (12/256 GB)", price: 169999 },
+    { productName: "Galaxy S24 Ultra (12/512 GB) TITANIUM GRAY", model: "Galaxy S24 Ultra (12/512 GB)", price: 189999 },
+    { productName: "Galaxy Z Flip6 (12/256 GB) MINT", model: "Galaxy Z Flip6 (12/256 GB)", price: 139999 },
+    { productName: "Galaxy A55 (8/128 GB) AWESOME NAVY", model: "Galaxy A55 (8/128 GB)", price: 44999 },
+    { productName: "Galaxy A15 (4/128 GB) BLUE BLACK", model: "Galaxy A15 (4/128 GB)", price: 18999 },
   ];
 
   const products = [];
   for (const p of productDefs) {
-    const sku = `SAM-${p.model.replace(/\s+/g, "").toUpperCase()}-${p.storageCapacity}-${p.color.replace(/\s+/g, "").toUpperCase()}`;
+    const sku = `AUTO-${crypto.randomUUID()}`;
     const buyingPrice = Math.round(p.price * 0.88);
     const product = await prisma.product.create({
       data: {
         storeId: store.id,
+        productName: p.productName,
         model: p.model,
-        ram: p.ram,
-        storageCapacity: p.storageCapacity,
-        color: p.color,
         sku,
         barcode: sku,
         defaultSellingPrice: p.price,

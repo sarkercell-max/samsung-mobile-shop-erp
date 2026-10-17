@@ -25,7 +25,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             <div key={s.id} className="flex items-center justify-between border-b pb-2 last:border-0">
               <div>
                 <p className="text-sm font-medium">{s.invoiceNumber}</p>
-                <p className="text-xs text-muted-foreground">{s.items.map((i) => i.product.model).join(", ")} · {formatDateTime(s.createdAt)}</p>
+                <p className="text-xs text-muted-foreground">{s.items.map((i) => i.product.productName).join(", ")} · {formatDateTime(s.createdAt)}</p>
               </div>
               <p className="font-semibold">{formatCurrency(Number(s.total))}</p>
             </div>

@@ -223,8 +223,7 @@ export async function exportPurchases(ids?: string[], filters?: { from?: string;
   await prisma.auditLog.create({ data: { storeId: user.storeId, userId: user.id, action: "purchase.export", entityType: "PurchaseBatch", metadata: { itemCount: exportedCount, selected: Boolean(ids?.length), filters: { from: filters?.from, to: filters?.to, supplier: Boolean(filters?.supplier), batch: Boolean(filters?.batch) } } } });
   return batches.flatMap((b) => b.items.map((item) => ({
     "Purchase Number": b.purchaseNumber, "Purchase Batch": b.batchNumber, Supplier: b.supplierName,
-    "Purchase Date": b.purchaseDate.toISOString().slice(0, 10), IMEI: item.imei, Product: item.product.model,
-    SKU: item.product.sku, Model: item.product.model, RAM: item.product.ram, Storage: item.product.storageCapacity,
-    Color: item.product.color, "Purchase Price": item.buyingPrice.toString(), Quantity: item.quantity, Status: b.status,
+    "Purchase Date": b.purchaseDate.toISOString().slice(0, 10), IMEI: item.imei, "Product Name": item.product.productName,
+    "Model Name": item.product.model, "Purchase Price": item.buyingPrice.toString(), Quantity: item.quantity, Status: b.status,
   })));
 }

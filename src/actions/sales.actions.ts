@@ -60,11 +60,8 @@ export async function lookupImei(rawImei: string) {
       imei: record.imei,
       product: {
         id: record.product.id,
+        productName: record.product.productName,
         model: record.product.model,
-        ram: record.product.ram,
-        storageCapacity: record.product.storageCapacity,
-        color: record.product.color,
-        sku: record.product.sku,
       },
       // Buying price is fetched for profit calculation but MUST NEVER be
       // rendered to a Manager on the client — filter it out at the UI layer.
@@ -108,7 +105,7 @@ export async function lookupCustomer(rawPhone: string) {
         invoiceNumber: s.invoiceNumber,
         total: Number(s.total),
         date: s.createdAt,
-        items: s.items.map((i) => i.product.model),
+        items: s.items.map((i) => i.product.productName),
       })),
     },
   };

@@ -74,7 +74,7 @@ export function InvoicePrintView({ sale, store, format, canSeeCost = false }: In
           return (
             <div key={item.id} className="mb-2">
               <p className="font-medium">
-                {item.product.model} {item.product.ram}/{item.product.storageCapacity} {item.product.color}
+                {item.product.productName}
               </p>
               <p className="text-[10px]">IMEI: {item.inventory.imei}</p>
               <div className="flex justify-between"><span>Regular Price</span><span>{formatCurrency(gross)}</span></div>

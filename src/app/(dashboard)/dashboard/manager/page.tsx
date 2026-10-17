@@ -41,7 +41,7 @@ export default async function ManagerDashboardPage() {
               <div>
                 <p className="text-sm font-medium">{sale.invoiceNumber} · {sale.customer.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {sale.items.map((i) => i.product.model).join(", ")} · {formatDateTime(sale.createdAt)}
+                  {sale.items.map((i) => i.product.productName).join(", ")} · {formatDateTime(sale.createdAt)}
                 </p>
               </div>
               <span className="font-semibold">{formatCurrency(Number(sale.total))}</span>

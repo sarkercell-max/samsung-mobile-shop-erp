@@ -27,11 +27,12 @@ export default function NewPromotionPage() {
   const [pending, startTransition] = useTransition();
 
   const [products, setProducts] = useState<
-    { id: string; model: string }[]
+    { id: string; productName: string; model: string }[]
   >([]);
 
   const [form, setForm] = useState({
     productId: "",
+    scope: "model" as "model" | "variant",
     startDate: "",
     endDate: "",
     promoAmount: "",
@@ -40,7 +41,7 @@ export default function NewPromotionPage() {
 
   useEffect(() => {
     listProducts().then((result) => {
-      setProducts(result as { id: string; model: string }[]);
+      setProducts(result as { id: string; productName: string; model: string }[]);
     });
   }, []);
 
@@ -55,6 +56,7 @@ export default function NewPromotionPage() {
         startDate: new Date(form.startDate),
         endDate: new Date(form.endDate),
         productId: form.productId,
+        applyToModel: form.scope === "model",
         promoAmount: Number(form.promoAmount),
         promoType: form.promoType,
       });
@@ -79,7 +81,7 @@ export default function NewPromotionPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <Label>Model</Label>
+              <Label>{form.scope === "model" ? "Model (all variants)" : "Product variant"}</Label>
 
               <Select
                 value={form.productId}
@@ -95,16 +97,25 @@ export default function NewPromotionPage() {
                 </SelectTrigger>
 
                 <SelectContent>
-                  {products.map((product) => (
+                  {(form.scope === "model"
+                    ? [...new Map(products.map((product) => [product.model.replace(/\s*\([^)]*\)\s*$/, "").trim(), product])).values()]
+                    : products
+                  ).map((product) => (
                     <SelectItem
                       key={product.id}
                       value={product.id}
                     >
-                      {product.model}
+                      {form.scope === "model" ? product.model.replace(/\s*\([^)]*\)\s*$/, "").trim() : `${product.productName} / ${product.model}`}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="flex gap-2 text-sm">
+              <button type="button" className={form.scope === "model" ? "font-medium text-primary" : "text-muted-foreground"} onClick={() => setForm((f) => ({ ...f, scope: "model" }))}>All variants of model</button>
+              <span className="text-muted-foreground">·</span>
+              <button type="button" className={form.scope === "variant" ? "font-medium text-primary" : "text-muted-foreground"} onClick={() => setForm((f) => ({ ...f, scope: "variant" }))}>One variant only</button>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

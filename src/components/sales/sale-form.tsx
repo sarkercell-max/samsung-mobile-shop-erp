@@ -20,7 +20,7 @@ type PaymentMethod = "CASH" | "BKASH" | "NAGAD" | "ROCKET" | "CARD" | "BANK" | "
 interface ScannedItem {
   inventoryId: string;
   imei: string;
-  product: { model: string; ram: string; storageCapacity: string; color: string; sku: string };
+  product: { productName: string; model: string };
   sellingPrice: number;
   warrantyMonths: number;
   promo: { amount: number; type: string } | null;
@@ -184,7 +184,7 @@ export function SaleForm({ isOwner }: { isOwner: boolean }) {
                 <Smartphone className="h-8 w-8 shrink-0 text-primary" />
                 <div>
                   <p className="font-medium">
-                    {item.product.model} · {item.product.ram}/{item.product.storageCapacity} · {item.product.color}
+                    {item.product.productName}
                   </p>
                   <p className="text-xs text-muted-foreground">IMEI: {item.imei}</p>
                   <div className="mt-1 flex flex-wrap gap-1.5">

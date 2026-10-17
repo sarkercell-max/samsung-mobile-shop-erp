@@ -16,7 +16,6 @@ export async function listInventory(status?: InventoryStatus, query?: string) {
             OR: [
               { imei: { contains: query } },
               { product: { model: { contains: query, mode: "insensitive" } } },
-              { product: { sku: { contains: query, mode: "insensitive" } } },
             ],
           }
         : {}),
@@ -46,7 +45,7 @@ export async function getStockOverview() {
   return products.map((p) => {
     const units = p.inventory;
     const available = units.filter((i) => i.status === "AVAILABLE");
-    return { id: p.id, model: p.model, variant: `${p.ram}/${p.storageCapacity} · ${p.color}`, current: units.filter((i) => ["AVAILABLE", "RESERVED", "RETURNED", "DAMAGED"].includes(i.status)).length, available: available.length, sold: units.filter((i) => i.status === "SOLD").length, purchased: units.filter((i) => i.status !== "CANCELLED").length, returned: units.filter((i) => i.status === "RETURNED").length, damaged: units.filter((i) => i.status === "DAMAGED").length, reserved: units.filter((i) => i.status === "RESERVED").length, value: available.reduce((n, i) => n + Number(i.buyingPrice), 0), purchaseCost: Number(p.defaultBuyingPrice ?? 0), sellingPrice: Number(p.defaultSellingPrice), lastPurchasePrice: units.length ? Number([...units].sort((a,b)=>b.createdAt.getTime()-a.createdAt.getTime())[0]!.buyingPrice) : 0, lastSalePrice: Number([...units].sort((a,b)=>b.createdAt.getTime()-a.createdAt.getTime()).find((i)=>i.saleItem)?.saleItem?.sellingPrice ?? 0), lowAt: p.minimumStock, low: available.length <= p.minimumStock };
+    return { id: p.id, productName: p.productName, model: p.model, current: units.filter((i) => ["AVAILABLE", "RESERVED", "RETURNED", "DAMAGED"].includes(i.status)).length, available: available.length, sold: units.filter((i) => i.status === "SOLD").length, purchased: units.filter((i) => i.status !== "CANCELLED").length, returned: units.filter((i) => i.status === "RETURNED").length, damaged: units.filter((i) => i.status === "DAMAGED").length, reserved: units.filter((i) => i.status === "RESERVED").length, value: available.reduce((n, i) => n + Number(i.buyingPrice), 0), purchaseCost: Number(p.defaultBuyingPrice ?? 0), sellingPrice: Number(p.defaultSellingPrice), lastPurchasePrice: units.length ? Number([...units].sort((a,b)=>b.createdAt.getTime()-a.createdAt.getTime())[0]!.buyingPrice) : 0, lastSalePrice: Number([...units].sort((a,b)=>b.createdAt.getTime()-a.createdAt.getTime()).find((i)=>i.saleItem)?.saleItem?.sellingPrice ?? 0), lowAt: p.minimumStock, low: available.length <= p.minimumStock };
   });
 }
 
