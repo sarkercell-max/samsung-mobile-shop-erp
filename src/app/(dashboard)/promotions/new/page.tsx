@@ -98,14 +98,14 @@ export default function NewPromotionPage() {
 
                 <SelectContent>
                   {(form.scope === "model"
-                    ? [...new Map(products.map((product) => [product.model.replace(/\s*\([^)]*\)\s*$/, "").trim(), product])).values()]
+                    ? [...new Map(products.map((product) => [product.model, product])).values()]
                     : products
                   ).map((product) => (
                     <SelectItem
                       key={product.id}
                       value={product.id}
                     >
-                      {form.scope === "model" ? product.model.replace(/\s*\([^)]*\)\s*$/, "").trim() : `${product.productName} / ${product.model}`}
+                      {form.scope === "model" ? product.model : `${product.productName} / ${product.model}`}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -12,9 +12,8 @@ export async function createPromotion(input: CreatePromotionInput) {
 
   const product = await prisma.product.findUnique({ where: { id: parsed.data.productId } });
   if (!product) return { ok: false as const, error: "Product not found." };
-  const modelName = product.model.replace(/\s*\([^)]*\)\s*$/, "").trim();
   const targets = parsed.data.applyToModel
-    ? await prisma.product.findMany({ where: { model: { startsWith: `${modelName} (` }, storeId: product.storeId, deletedAt: null, isActive: true }, select: { id: true } })
+    ? await prisma.product.findMany({ where: { model: product.model, storeId: product.storeId, deletedAt: null, isActive: true }, select: { id: true } })
     : [{ id: product.id }];
   const promo = await prisma.$transaction(async (tx) => {
     const overlapping = await tx.promotion.findMany({ where: { productId: { in: targets.map((target) => target.id) }, isActive: true, startDate: { lte: parsed.data.endDate }, endDate: { gte: parsed.data.startDate } } });
