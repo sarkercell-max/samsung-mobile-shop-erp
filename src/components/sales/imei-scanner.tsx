@@ -37,6 +37,33 @@ export function ImeiScanner({ onScan, disabled }: ImeiScannerProps) {
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
+  // ZXing Barcode Scanner can return a scanned value to a web page callback.
+  // Keep the IMEI in the URL fragment so it is not sent to the server.
+  useEffect(() => {
+    const currentUrl = new URL(window.location.href);
+    if (!currentUrl.hash.startsWith("#scan=")) return;
+
+    const scannedValue = new URLSearchParams(currentUrl.hash.slice(1)).get("scan") ?? "";
+    window.history.replaceState(null, "", `${currentUrl.pathname}${currentUrl.search}`);
+    const candidates = [...new Set(scannedValue.match(/[0-9]{15}/g) ?? [])];
+    if (candidates.length === 1) onScan(candidates[0]!);
+    else if (candidates.length > 1) setScannedImeis(candidates);
+    else setCameraError("The scanner app did not return a 15-digit IMEI.");
+  }, [onScan]);
+
+  function openAndroidScannerApp() {
+    if (!/Android/i.test(navigator.userAgent)) {
+      setCameraError("The external Barcode Scanner app is available on Android only.");
+      return;
+    }
+
+    const callbackUrl = `${window.location.origin}${window.location.pathname}#scan={CODE}`;
+    const scannerUrl = new URL("zxing://scan/");
+    scannerUrl.searchParams.set("ret", callbackUrl);
+    scannerUrl.searchParams.set("SCAN_FORMATS", "CODE_128");
+    window.location.assign(scannerUrl.toString());
+  }
+
   const startCamera = useCallback(async () => {
     stopCamera();
     setCameraError(null);
@@ -97,6 +124,9 @@ export function ImeiScanner({ onScan, disabled }: ImeiScannerProps) {
     <div className="space-y-3">
       <Button type="button" onClick={startCamera} disabled={disabled} className="min-h-11 gap-2">
         <Camera className="h-5 w-5" /> Scan IMEI
+      </Button>
+      <Button type="button" variant="outline" onClick={openAndroidScannerApp} disabled={disabled} className="min-h-11 gap-2">
+        <ScanLine className="h-5 w-5" /> Open Barcode Scanner app
       </Button>
       <form onSubmit={handleManualSubmit} className="flex gap-2">
         <Input value={manualImei} onChange={(event) => setManualImei(event.target.value.slice(0, 15))}
