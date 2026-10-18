@@ -66,9 +66,12 @@ Or connect the GitHub repo in the Vercel dashboard. Add every variable from
 (all three environments: Production, Preview, Development). Redeploy after
 adding them.
 
-Build command: `next build` (default). Prisma's `postinstall` runs
-`prisma generate` automatically via the `db:generate` script — if you use a
-custom build pipeline, make sure `prisma generate` runs before `next build`.
+The repository's Vercel build command runs `prisma migrate deploy` for
+Production deployments before building, then generates Prisma Client and
+runs `next build`. Preview deployments skip migrations. Make sure Vercel has
+both `DATABASE_URL` and `DIRECT_URL` configured for Production; Prisma uses
+`DIRECT_URL` for migrations. If the Build Command is overridden in Vercel
+Project Settings, set it to `node scripts/vercel-build.mjs`.
 
 ## 7. Multi-store rollout
 
