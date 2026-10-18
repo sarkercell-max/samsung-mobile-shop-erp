@@ -18,6 +18,7 @@ export function ImeiScanner({ onScan, disabled }: ImeiScannerProps) {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [scannedImeis, setScannedImeis] = useState<string[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
   const scanHandledRef = useRef(false);
@@ -39,6 +40,7 @@ export function ImeiScanner({ onScan, disabled }: ImeiScannerProps) {
   const startCamera = useCallback(async () => {
     stopCamera();
     setCameraError(null);
+    setScannedImeis([]);
     setCameraReady(false);
     scanHandledRef.current = false;
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -53,16 +55,24 @@ export function ImeiScanner({ onScan, disabled }: ImeiScannerProps) {
         BarcodeFormat.QR_CODE, BarcodeFormat.DATA_MATRIX, BarcodeFormat.EAN_13,
         BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
       ]);
+      hints.set(DecodeHintType.TRY_HARDER, true);
       const reader = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 120, delayBetweenScanSuccess: 120 });
-      const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-      const backCamera = devices.find((device) => /back|rear|environment/i.test(device.label));
       if (!videoRef.current) return;
-      controlsRef.current = await reader.decodeFromVideoDevice(backCamera?.deviceId, videoRef.current, (result) => {
+      controlsRef.current = await reader.decodeFromConstraints({
+        audio: false,
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+      }, videoRef.current, (result) => {
         if (!result || scanHandledRef.current) return;
+        const candidates = [...new Set(result.getText().match(/[0-9]{15}/g) ?? [])];
+        if (!candidates.length) return;
         scanHandledRef.current = true;
-        const text = result.getText();
         closeCamera();
-        onScan(text);
+        if (candidates.length === 1) onScan(candidates[0]!);
+        else setScannedImeis(candidates);
       });
     } catch {
       setCameraError("Could not access the camera. Check browser permission or enter the IMEI manually.");
@@ -79,6 +89,7 @@ export function ImeiScanner({ onScan, disabled }: ImeiScannerProps) {
     }
     onScan(value);
     setManualImei("");
+    setScannedImeis([]);
     setCameraError(null);
   };
 
@@ -94,6 +105,18 @@ export function ImeiScanner({ onScan, disabled }: ImeiScannerProps) {
       </form>
       {manualImei.length > 0 && !/^[0-9]{15}$/.test(manualImei) && <p role="alert" className="text-sm text-destructive">IMEI must be exactly 15 digits.</p>}
       {cameraError && <p role="alert" className="text-sm text-destructive">{cameraError}</p>}
+      {scannedImeis.length > 0 && (
+        <div className="space-y-2 rounded-md border p-3" role="group" aria-label="Choose scanned IMEI">
+          <p className="text-sm font-medium">Barcode-এ একাধিক IMEI পাওয়া গেছে। কোনটি যোগ করবেন?</p>
+          <div className="flex flex-wrap gap-2">
+            {scannedImeis.map((imei) => (
+              <Button key={imei} type="button" variant="outline" onClick={() => { setScannedImeis([]); onScan(imei); }}>
+                {imei}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Dialog open={cameraOpen} onOpenChange={(open) => { if (!open) closeCamera(); }}>
         <DialogContent onEscapeKeyDown={closeCamera} onInteractOutside={closeCamera}>
