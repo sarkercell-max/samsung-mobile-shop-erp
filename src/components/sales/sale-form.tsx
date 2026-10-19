@@ -3,7 +3,6 @@
 import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ImeiScanner } from "./imei-scanner";
 import { CustomerLookup, type CustomerInfo } from "./customer-lookup";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,7 @@ import { Smartphone, Tag, ShieldCheck, Gift, Trash2, Loader2, CheckCircle2 } fro
 
 type PaymentMethod = "CASH" | "BKASH" | "NAGAD" | "ROCKET" | "CARD" | "BANK" | "SPLIT";
 
-interface ScannedItem {
+interface SaleItem {
   inventoryId: string;
   imei: string;
   product: { productName: string; model: string };
@@ -40,12 +39,13 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 
 export function SaleForm({ isOwner }: { isOwner: boolean }) {
   const router = useRouter();
-  const [items, setItems] = useState<ScannedItem[]>([]);
+  const [items, setItems] = useState<SaleItem[]>([]);
   const [customer, setCustomer] = useState<CustomerInfo | null>(null);
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
-  const [scanError, setScanError] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(false);
+  const [imeiInput, setImeiInput] = useState("");
+  const [imeiError, setImeiError] = useState<string | null>(null);
+  const [lookingUpImei, setLookingUpImei] = useState(false);
   const [submitting, startSubmit] = useTransition();
   const [success, setSuccess] = useState<{ saleId: string; invoiceNumber: string; total: number } | null>(null);
 
@@ -53,20 +53,20 @@ export function SaleForm({ isOwner }: { isOwner: boolean }) {
   const totalPromo = useMemo(() => items.reduce((sum, i) => sum + (i.promo?.amount ?? 0), 0), [items]);
   const total = Math.max(subtotal - discount, 0);
 
-  async function handleScan(imei: string) {
+  async function handleAddImei(imei: string) {
     if (items.some((i) => i.imei === imei)) {
-      setScanError("This IMEI is already added to the current sale.");
-      return;
+      setImeiError("This IMEI is already added to the current sale.");
+      return false;
     }
-    setScanning(true);
-    setScanError(null);
+    setLookingUpImei(true);
+    setImeiError(null);
     const res = await lookupImei(imei);
-    setScanning(false);
+    setLookingUpImei(false);
 
     if (!res.ok) {
-      setScanError(res.error);
+      setImeiError(res.error);
       toast.error(res.error);
-      return;
+      return false;
     }
 
     setItems((prev) => [
@@ -80,6 +80,17 @@ export function SaleForm({ isOwner }: { isOwner: boolean }) {
         promo: res.data.promo,
       },
     ]);
+    return true;
+  }
+
+  async function handleImeiSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const imei = imeiInput.trim();
+    if (!/^[0-9]{15}$/.test(imei)) {
+      setImeiError("IMEI must be exactly 15 digits.");
+      return;
+    }
+    if (await handleAddImei(imei)) setImeiInput("");
   }
 
   function removeItem(imei: string) {
@@ -94,7 +105,7 @@ export function SaleForm({ isOwner }: { isOwner: boolean }) {
       return;
     }
     if (items.length === 0) {
-      toast.error("Scan at least one IMEI.");
+      toast.error("Add at least one IMEI.");
       return;
     }
 
@@ -163,12 +174,25 @@ export function SaleForm({ isOwner }: { isOwner: boolean }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>2. Scan IMEI</CardTitle>
+          <CardTitle>2. Add IMEI</CardTitle>
         </CardHeader>
         <CardContent>
-          <ImeiScanner onScan={handleScan} disabled={submitting || scanning} />
-          {scanning && <p role="status" className="mt-2 flex items-center gap-2 text-sm font-medium text-primary"><Loader2 className="h-4 w-4 animate-spin" /> IMEI যাচাই করা হচ্ছে…</p>}
-          {scanError && <p className="mt-2 text-sm font-medium text-destructive">{scanError}</p>}
+          <form onSubmit={handleImeiSubmit} className="flex gap-2">
+            <Input
+              value={imeiInput}
+              onChange={(event) => setImeiInput(event.target.value.replace(/[^0-9]/g, "").slice(0, 15))}
+              placeholder="Enter 15-digit IMEI"
+              inputMode="numeric"
+              maxLength={15}
+              disabled={submitting || lookingUpImei}
+              className="text-lg tracking-wide"
+            />
+            <Button type="submit" disabled={submitting || lookingUpImei || !/^[0-9]{15}$/.test(imeiInput)}>
+              Add
+            </Button>
+          </form>
+          {lookingUpImei && <p role="status" className="mt-2 flex items-center gap-2 text-sm font-medium text-primary"><Loader2 className="h-4 w-4 animate-spin" /> IMEI যাচাই করা হচ্ছে…</p>}
+          {imeiError && <p className="mt-2 text-sm font-medium text-destructive">{imeiError}</p>}
         </CardContent>
       </Card>
 
@@ -177,7 +201,7 @@ export function SaleForm({ isOwner }: { isOwner: boolean }) {
           <CardTitle>Items ({items.length})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {items.length === 0 && <p className="text-sm text-muted-foreground">Scan an IMEI above to add a phone to this sale.</p>}
+          {items.length === 0 && <p className="text-sm text-muted-foreground">Enter an IMEI above to add a phone to this sale.</p>}
           {items.map((item) => (
             <div key={item.imei} className="flex items-center justify-between gap-3 rounded-xl border p-3">
               <div className="flex items-center gap-3">

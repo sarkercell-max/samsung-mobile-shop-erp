@@ -11,7 +11,7 @@ import { InventoryStatus } from "@prisma/client";
 // ============================================================================
 // IMEI LOOKUP — the auto-fill engine for the sales screen.
 // Fetches product, price, promo, warranty, and inventory status from a
-// single scanned/typed IMEI.
+// single manually entered IMEI.
 // ============================================================================
 export async function lookupImei(rawImei: string) {
   const user = await getCurrentUser();
@@ -150,7 +150,7 @@ export async function createSale(input: CreateSaleInput) {
       });
     }
 
-    // 2. Resolve every scanned IMEI against trusted inventory rows (server-side truth)
+    // 2. Resolve every entered IMEI against trusted inventory rows (server-side truth)
     const inventoryRows = await tx.inventory.findMany({
       where: { storeId: user.storeId, imei: { in: data.imeis } },
       include: { product: true },
