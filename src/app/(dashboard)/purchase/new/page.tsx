@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -190,7 +191,7 @@ export default function NewPurchasePage() {
               </Select>
               {suppliers.length === 0 && (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  No suppliers yet. Add one from the <a className="text-primary underline" href="/suppliers">Suppliers page</a>.
+                  No suppliers yet. Add one from the <Link className="text-primary underline" href="/suppliers">Suppliers page</Link>.
                 </p>
               )}
             </div>
