@@ -11,6 +11,25 @@ const supplierPaymentSchema = z.object({
   paymentMethod: z.nativeEnum(PaymentMethod), reference: z.string().optional(), note: z.string().optional(),
 });
 
+const createSupplierSchema = z.object({
+  name: z.string().trim().min(1, "Supplier name is required.").max(120, "Supplier name is too long."),
+});
+
+export async function createSupplier(input: unknown) {
+  const user = await requireOwner();
+  const parsed = createSupplierSchema.safeParse(input);
+  if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid supplier name." };
+
+  const existing = await prisma.supplier.findFirst({ where: { storeId: user.storeId, name: parsed.data.name } });
+  if (existing) return { ok: false as const, error: "This supplier already exists in the current shop." };
+
+  const supplier = await prisma.supplier.create({ data: { storeId: user.storeId, name: parsed.data.name } });
+  revalidatePath("/suppliers");
+  revalidatePath("/purchase/new");
+  revalidatePath("/reports");
+  return { ok: true as const, data: { id: supplier.id, name: supplier.name } };
+}
+
 export async function getSuppliers() {
   const user = await requireOwner();
   const suppliers = await prisma.supplier.findMany({ where: { storeId: user.storeId }, orderBy: { name: "asc" } });

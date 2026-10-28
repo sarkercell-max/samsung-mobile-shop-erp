@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createPurchaseBatch } from "@/actions/purchase.actions";
+import { getLedgerSuppliers } from "@/actions/suppliers.actions";
 import { listProducts } from "@/actions/products.actions";
 import { getCurrentPricing } from "@/actions/pricing.actions";
 import { Plus, Trash2 } from "lucide-react";
@@ -41,10 +42,8 @@ export default function NewPurchasePage() {
   const [pending, startTransition] = useTransition();
 
   const [products, setProducts] = useState<Product[]>([]);
-
-  const [supplierName, setSupplierName] = useState(
-    "Samsung Bangladesh Distribution Ltd."
-  );
+  const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
+  const [supplierName, setSupplierName] = useState("");
 
   const [batchNumber, setBatchNumber] = useState("");
 
@@ -63,8 +62,9 @@ export default function NewPurchasePage() {
   ]);
 
   useEffect(() => {
-    listProducts().then((result) => {
-      setProducts(result as Product[]);
+    Promise.all([listProducts(), getLedgerSuppliers()]).then(([productResult, supplierResult]) => {
+      setProducts(productResult as Product[]);
+      setSuppliers(supplierResult);
     });
   }, []);
 
@@ -126,6 +126,11 @@ export default function NewPurchasePage() {
   ) {
     e.preventDefault();
 
+    if (!supplierName) {
+      toast.error("Select a supplier first.");
+      return;
+    }
+
     startTransition(async () => {
       const res = await createPurchaseBatch({
         supplierName,
@@ -171,15 +176,23 @@ export default function NewPurchasePage() {
           <CardContent className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label>Supplier</Label>
-
-              <Input
-                className="mt-1.5"
-                value={supplierName}
-                onChange={(e) =>
-                  setSupplierName(e.target.value)
-                }
-                required
-              />
+              <Select value={supplierName} onValueChange={setSupplierName}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Select supplier" />
+                </SelectTrigger>
+                <SelectContent>
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.name}>
+                      {supplier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {suppliers.length === 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  No suppliers yet. Add one from the <a className="text-primary underline" href="/suppliers">Suppliers page</a>.
+                </p>
+              )}
             </div>
 
             <div>
@@ -234,7 +247,7 @@ export default function NewPurchasePage() {
             {rows.map((row, idx) => (
               <div
                 key={idx}
-                className="grid grid-cols-1 items-end gap-2 rounded-xl border p-2 sm:grid-cols-[1fr_1fr_1fr_auto]"
+                className="grid grid-cols-1 items-end gap-2 rounded-xl border p-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
               >
                 <div>
                   <Label className="text-xs">
@@ -247,7 +260,7 @@ export default function NewPurchasePage() {
                       handleProductSelect(idx, value)
                     }
                   >
-                    <SelectTrigger className="mt-1 h-10">
+                    <SelectTrigger className="mt-1 h-10 w-full min-w-0">
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
 
@@ -270,7 +283,7 @@ export default function NewPurchasePage() {
                   </Label>
 
                   <Input
-                    className="mt-1 h-10"
+                    className="mt-1 h-10 w-full min-w-0"
                     value={row.imei}
                     onChange={(e) => updateRow(idx, "imei", e.target.value.slice(0, 15))}
                     inputMode="numeric"
