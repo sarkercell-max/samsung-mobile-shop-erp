@@ -1,21 +1,67 @@
 "use client";
 import { useState } from "react";
-import { getSupplierLedger } from "@/actions/suppliers.actions";
-import { getCustomerLedger } from "@/actions/reports.actions";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getBusinessLedger } from "@/actions/reports.actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
-type Party={id:string;name:string};
-export function LedgerReport({ suppliers, customers, initialFrom, initialTo }: { suppliers:Party[]; customers:Party[]; initialFrom?:string; initialTo?:string }) {
- const [kind,setKind]=useState("supplier"),[id,setId]=useState(""),[from,setFrom]=useState(initialFrom??new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().slice(0,10)),[to,setTo]=useState(initialTo??new Date().toISOString().slice(0,10)),[ledger,setLedger]=useState<any>(null),[busy,setBusy]=useState(false);
- async function load(){if(!id)return;setBusy(true);const f=new Date(`${from}T00:00:00`),t=new Date(`${to}T23:59:59.999`);setLedger(kind==="supplier"?await getSupplierLedger(id,f,t):await getCustomerLedger(id,f,t));setBusy(false)}
- const entries=ledger?.entries??[];
- function exportLedger(format:"csv"|"xlsx") { if(!ledger)return; const rows=[{Date:from,Description:"Opening Balance",Debit:"",Credit:"",Balance:ledger.openingBalance},...entries.map((r:any)=>({Date:formatDate(r.date),Description:r.description,Debit:r.debit||"",Credit:r.credit||"",Balance:r.balance}))]; const ws=XLSX.utils.json_to_sheet(rows); if(format==="xlsx"){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Ledger");XLSX.writeFile(wb,"ledger.xlsx");}else{const blob=new Blob([XLSX.utils.sheet_to_csv(ws)],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ledger.csv";a.click();URL.revokeObjectURL(url);} }
- return <div className="space-y-3"><div className="flex flex-wrap items-end gap-2"><div className="w-44"><label className="text-xs">Ledger Type</label><Select value={kind} onValueChange={v=>{setKind(v);setId("");setLedger(null)}}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="supplier">Supplier Ledger</SelectItem><SelectItem value="customer">Customer Ledger</SelectItem></SelectContent></Select></div><div className="w-56"><label className="text-xs">{kind} Select</label><Select value={id} onValueChange={setId}><SelectTrigger><SelectValue placeholder={`Select ${kind}`}/></SelectTrigger><SelectContent>{(kind==="supplier"?suppliers:customers).map(p=><SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div><label className="text-xs">From<Input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label className="text-xs">To<Input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><Button onClick={load} disabled={!id||busy}>{busy?"Loading…":"Apply"}</Button><Button variant="outline" onClick={()=>window.print()} disabled={!ledger}>Print</Button><Button variant="outline" onClick={()=>exportLedger("csv")} disabled={!ledger}>CSV</Button><Button variant="outline" onClick={()=>exportLedger("xlsx")} disabled={!ledger}>Excel</Button></div>
- {ledger&&<div id="ledger-print" className="space-y-3"><h3 className="font-semibold">{kind==="supplier"?ledger.supplier.name:ledger.customer.name} Ledger</h3><div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><Card><CardContent className="p-3 text-sm">Opening<br/><b>{formatCurrency(ledger.openingBalance)}</b></CardContent></Card><Card><CardContent className="p-3 text-sm">Total Debit<br/><b>{formatCurrency(ledger.totalDebit)}</b></CardContent></Card><Card><CardContent className="p-3 text-sm">Total Credit<br/><b>{formatCurrency(ledger.totalCredit)}</b></CardContent></Card><Card><CardContent className="p-3 text-sm">Closing<br/><b>{formatCurrency(ledger.closingBalance)}</b></CardContent></Card></div><div className="overflow-x-auto rounded-xl border"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-2">Date</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody><tr className="border-b"><td className="p-2">{formatDate(from)}</td><td>Opening Balance</td><td>—</td><td>—</td><td>{formatCurrency(ledger.openingBalance)}</td></tr>{entries.map((row:any,i:number)=><tr key={i} className="border-b"><td className="p-2">{formatDate(row.date)}</td><td>{row.batchId?<a className="text-primary underline" href={`/purchase#${row.batchId}`} title="View purchase batch">{row.description}</a>:row.description}</td><td>{row.debit?formatCurrency(row.debit):"—"}</td><td>{row.credit?formatCurrency(row.credit):"—"}</td><td>{formatCurrency(row.balance)}</td></tr>)}</tbody></table></div></div>}
- </div>;
+export function LedgerReport({ initialFrom, initialTo }: { initialFrom?: string; initialTo?: string }) {
+  const [from, setFrom] = useState(initialFrom ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
+  const [to, setTo] = useState(initialTo ?? new Date().toISOString().slice(0, 10));
+  const [entries, setEntries] = useState<any[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    setBusy(true);
+    try {
+      setEntries(await getBusinessLedger(new Date(`${from}T00:00:00`), new Date(`${to}T23:59:59.999`)));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function exportLedger(format: "csv" | "xlsx") {
+    if (!entries) return;
+    const rows = entries.map((entry) => ({ Date: formatDate(entry.date), Type: entry.type, Details: entry.details, Amount: entry.amount }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    if (format === "xlsx") {
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Ledger");
+      XLSX.writeFile(wb, "ledger.xlsx");
+    } else {
+      const blob = new Blob([XLSX.utils.sheet_to_csv(ws)], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "ledger.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  const totalAmount = entries?.reduce((sum, entry) => sum + entry.amount, 0) ?? 0;
+
+  return <div className="space-y-3">
+    <div className="flex flex-wrap items-end gap-2">
+      <label className="text-xs">From<Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+      <label className="text-xs">To<Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+      <Button onClick={load} disabled={busy}>{busy ? "Loading…" : "Apply"}</Button>
+      <Button variant="outline" onClick={() => window.print()} disabled={!entries}>Print</Button>
+      <Button variant="outline" onClick={() => exportLedger("csv")} disabled={!entries}>CSV</Button>
+      <Button variant="outline" onClick={() => exportLedger("xlsx")} disabled={!entries}>Excel</Button>
+    </div>
+    {entries && <div id="ledger-print" className="space-y-3">
+      <Card><CardContent className="flex flex-wrap justify-between gap-2 p-3 text-sm"><span>Transactions: <b>{entries.length}</b></span><span>Total activity: <b>{formatCurrency(totalAmount)}</b></span></CardContent></Card>
+      <div className="overflow-x-auto rounded-xl border">
+        <table className="w-full text-sm">
+          <thead><tr className="border-b bg-muted/50 text-left"><th className="p-2">Date</th><th className="p-2">Type</th><th className="p-2">Details</th><th className="p-2 text-right">Amount</th></tr></thead>
+          <tbody>{entries.map((entry) => <tr key={entry.id} className="border-b"><td className="whitespace-nowrap p-2">{formatDate(entry.date)}</td><td className="whitespace-nowrap p-2">{entry.type}</td><td className="p-2">{entry.details}</td><td className="whitespace-nowrap p-2 text-right">{formatCurrency(entry.amount)}</td></tr>)}
+            {entries.length === 0 && <tr><td className="p-4 text-center text-muted-foreground" colSpan={4}>No transactions for this date range.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>}
+  </div>;
 }
