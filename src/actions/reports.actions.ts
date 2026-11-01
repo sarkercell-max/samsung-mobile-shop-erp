@@ -284,42 +284,36 @@ export async function getTransactionReports(from: Date, to: Date) {
 /** Store-wide activity timeline used by the full ledger report. */
 export async function getBusinessLedger(from: Date, to: Date) {
   const user = await requireOwner();
-  const [purchases, sales, customerPayments, supplierPayments, expenses] = await Promise.all([
+  const [purchases, sales] = await Promise.all([
     prisma.purchaseBatch.findMany({
       where: { storeId: user.storeId, status: "RECEIVED", purchaseDate: { gte: from, lte: to } },
-      include: { items: { include: { product: true } } }, orderBy: { purchaseDate: "desc" },
+      include: { items: true }, orderBy: { purchaseDate: "desc" },
     }),
     prisma.sale.findMany({
       where: { storeId: user.storeId, deletedAt: null, createdAt: { gte: from, lte: to } },
-      include: { customer: true, items: { include: { product: true } } }, orderBy: { createdAt: "desc" },
-    }),
-    prisma.payment.findMany({
-      where: { sale: { storeId: user.storeId, deletedAt: null }, createdAt: { gte: from, lte: to } },
-      include: { sale: { include: { customer: true } } }, orderBy: { createdAt: "desc" },
-    }),
-    prisma.supplierPayment.findMany({
-      where: { storeId: user.storeId, paymentDate: { gte: from, lte: to } },
-      include: { supplier: true }, orderBy: { paymentDate: "desc" },
-    }),
-    prisma.expense.findMany({
-      where: { storeId: user.storeId, expenseDate: { gte: from, lte: to } }, orderBy: { expenseDate: "desc" },
+      select: { createdAt: true, total: true, promoAmount: true }, orderBy: { createdAt: "desc" },
     }),
   ]);
 
-  const entries = [
-    ...purchases.map((p) => ({ id: `purchase-${p.id}`, date: p.purchaseDate, type: "Purchase", details: `${p.purchaseNumber} · ${p.supplierName} · ${p.items.map((i) => i.product.productName).join(", ")}`, amount: p.items.reduce((sum, i) => sum + Number(i.buyingPrice), 0) })),
-    ...sales.flatMap((s) => {
-      const products = s.items.map((i) => i.product.productName).join(", ");
-      const rows = [{ id: `sale-${s.id}`, date: s.createdAt, type: "Sale", details: `${s.invoiceNumber} · ${s.customer.name} · ${products}`, amount: Number(s.total) }];
-      const promo = s.items.reduce((sum, i) => sum + Number(i.promoAmount), 0);
-      if (promo > 0) rows.push({ id: `promo-${s.id}`, date: s.createdAt, type: "Promo", details: `${s.invoiceNumber} · ${s.customer.name} · ${products}`, amount: promo });
-      return rows;
-    }),
-    ...customerPayments.map((p) => ({ id: `deposit-${p.id}`, date: p.createdAt, type: "Customer Deposit / Payment", details: `${p.sale.invoiceNumber} · ${p.sale.customer.name} · ${p.method}${p.reference ? ` · ${p.reference}` : ""}`, amount: Number(p.amount) })),
-    ...supplierPayments.map((p) => ({ id: `supplier-payment-${p.id}`, date: p.paymentDate, type: "Supplier Payment", details: `${p.supplier.name} · ${p.paymentMethod}${p.note ? ` · ${p.note}` : ""}`, amount: Number(p.amount) })),
-    ...expenses.map((e) => ({ id: `expense-${e.id}`, date: e.expenseDate, type: "Expense", details: `${e.category}${e.description ? ` · ${e.description}` : ""}`, amount: Number(e.amount) })),
-  ].sort((a, b) => b.date.getTime() - a.date.getTime());
-  return entries;
+  const days = new Map<string, { date: string; sale: number; promo: number; purchase: number }>();
+  const dateKey = (date: Date) => {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+    return `${parts.find((p) => p.type === "year")!.value}-${parts.find((p) => p.type === "month")!.value}-${parts.find((p) => p.type === "day")!.value}`;
+  };
+  const dayFor = (date: Date) => {
+    const key = dateKey(date);
+    if (!days.has(key)) days.set(key, { date: key, sale: 0, promo: 0, purchase: 0 });
+    return days.get(key)!;
+  };
+  for (const sale of sales) {
+    const day = dayFor(sale.createdAt);
+    day.sale += Number(sale.total);
+    day.promo += Number(sale.promoAmount);
+  }
+  for (const purchase of purchases) {
+    dayFor(purchase.purchaseDate).purchase += purchase.items.reduce((sum, item) => sum + Number(item.buyingPrice), 0);
+  }
+  return [...days.values()].sort((a, b) => b.date.localeCompare(a.date));
 }
 
 export async function getCustomerLedger(customerId: string, from: Date, to: Date) {
