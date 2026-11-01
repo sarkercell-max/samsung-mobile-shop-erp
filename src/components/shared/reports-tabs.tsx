@@ -23,8 +23,8 @@ interface ReportsTabsProps {
     lowStock: any[];
     deadStock: any[];
     transactions: any;
-    suppliers: { id: string; name: string }[];
-    customers: { id: string; name: string }[];
+
+
     stockAnalytics: any;
     reportFrom: string;
     reportTo: string;
