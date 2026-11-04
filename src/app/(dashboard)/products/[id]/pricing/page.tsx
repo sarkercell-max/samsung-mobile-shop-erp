@@ -11,15 +11,18 @@ export default async function ProductPricingPage({ params }: { params: Promise<{
   const product = await prisma.product.findUnique({ where: { id } });
   if (!product) notFound();
 
-  const history = await listPriceHistory(id);
+  const [history, variantCount] = await Promise.all([
+    listPriceHistory(id),
+    prisma.product.count({ where: { model: product.model, deletedAt: null, isActive: true } }),
+  ]);
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
       <div>
-        <h1 className="text-xl font-semibold">{product.productName}</h1>
-        <p className="text-sm text-muted-foreground">Model: {product.model}</p>
+        <h1 className="text-xl font-semibold">Model Pricing</h1>
+        <p className="text-sm text-muted-foreground">{product.model} · applies to {variantCount} product variants</p>
       </div>
-      <PricingManager productId={product.id} history={history} />
+      <PricingManager productId={product.id} modelName={product.model} variantCount={variantCount} history={history} />
     </div>
   );
 }

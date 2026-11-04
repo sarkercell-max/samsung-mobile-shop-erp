@@ -20,7 +20,7 @@ interface PriceRow {
   effectiveTo: Date | string | null;
 }
 
-export function PricingManager({ productId, history }: { productId: string; history: PriceRow[] }) {
+export function PricingManager({ productId, modelName, variantCount, history }: { productId: string; modelName: string; variantCount: number; history: PriceRow[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
@@ -46,7 +46,7 @@ export function PricingManager({ productId, history }: { productId: string; hist
   toast.error(res.error);
   return;
 }
-      toast.success("New price period is now active.");
+      toast.success(`Price updated for ${variantCount} ${modelName} variants.`);
       setShowForm(false);
       setForm({ purchasePrice: "", salePrice: "", effectiveFrom: new Date().toISOString().slice(0, 10) });
       router.refresh();
@@ -56,7 +56,7 @@ export function PricingManager({ productId, history }: { productId: string; hist
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader><CardTitle>Current Price</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Current Model Price</CardTitle></CardHeader>
         <CardContent>
           {current ? (
             <div className="space-y-1 text-sm">
@@ -65,20 +65,20 @@ export function PricingManager({ productId, history }: { productId: string; hist
               <p className="pt-1 text-xs text-muted-foreground">Effective since {formatDate(current.effectiveFrom)}</p>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No price set yet — add the first price period below.</p>
+            <p className="text-sm text-muted-foreground">No price set yet — add the first model price below.</p>
           )}
         </CardContent>
       </Card>
 
       {!showForm && (
         <Button onClick={() => setShowForm(true)} className="w-full" size="lg">
-          <Plus className="mr-1 h-4 w-4" /> Add New Effective Price
+          <Plus className="mr-1 h-4 w-4" /> Update Price for All Variants
         </Button>
       )}
 
       {showForm && (
         <Card>
-          <CardHeader><CardTitle>New Price Period</CardTitle></CardHeader>
+          <CardHeader><CardTitle>New Model Price</CardTitle></CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-3">
               <div>

@@ -22,65 +22,73 @@ export async function createPricePeriod(input: CreatePricePeriodInput) {
   const product = await prisma.product.findUnique({ where: { id: data.productId } });
   if (!product) return { ok: false as const, error: "Product not found." };
 
-  const current = await pricingRepository.getCurrentPeriod(user.storeId, data.productId);
-
-  if (current && data.effectiveFrom <= current.effectiveFrom) {
-    return { ok: false as const, error: "New price period must start after the current period's start date to avoid overlapping history." };
+  // Product colors are separate catalog rows, but the model price is shared.
+  const variants = await prisma.product.findMany({
+    where: { model: product.model, deletedAt: null, isActive: true },
+    select: { id: true, storeId: true },
+  });
+  const variantIds = variants.map((variant) => variant.id);
+  const currentPeriods = await prisma.productPriceHistory.findMany({
+    where: { productId: { in: variantIds }, effectiveTo: null },
+  });
+  if (currentPeriods.some((period) => data.effectiveFrom <= period.effectiveFrom)) {
+    return { ok: false as const, error: "Effective date must be after the current price start date for every variant." };
   }
 
-  const overlapping = await prisma.productPriceHistory.findFirst({
+  const overlapping = await prisma.productPriceHistory.findMany({
     where: {
-      productId: data.productId,
+      productId: { in: variantIds },
       effectiveFrom: { lte: data.effectiveFrom },
       OR: [{ effectiveTo: null }, { effectiveTo: { gte: data.effectiveFrom } }],
     },
   });
-  if (overlapping && overlapping.id !== current?.id) {
-    return { ok: false as const, error: "This date range overlaps an existing price period for this product." };
+  if (overlapping.some((row) => !currentPeriods.some((period) => period.id === row.id))) {
+    return { ok: false as const, error: "This effective date overlaps an existing price period for one of the model variants." };
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    if (current) {
+    for (const current of currentPeriods) {
       await tx.productPriceHistory.update({ where: { id: current.id }, data: { effectiveTo: data.effectiveFrom } });
     }
 
-    const period = await tx.productPriceHistory.create({
+    const periods = await Promise.all(variants.map((variant) => tx.productPriceHistory.create({
       data: {
-        storeId: product.storeId,
-        productId: data.productId,
+        storeId: variant.storeId,
+        productId: variant.id,
         purchasePrice: data.purchasePrice,
         salePrice: data.salePrice,
         effectiveFrom: data.effectiveFrom,
         effectiveTo: null,
         createdById: user.id,
       },
-    });
+    })));
 
-    await tx.product.update({
-      where: { id: data.productId },
+    await tx.product.updateMany({
+      where: { id: { in: variantIds } },
       data: { defaultSellingPrice: data.salePrice, defaultBuyingPrice: data.purchasePrice },
     });
 
     await tx.auditLog.create({
       data: {
         storeId: user.storeId, userId: user.id, action: "global_rate_update",
-        entityType: "ProductPriceHistory", entityId: period.id,
+        entityType: "ProductPriceHistory", entityId: periods[0]?.id,
         metadata: {
-          type: "Global Rate Update", productId: data.productId,
-          oldValues: current ? { purchasePrice: Number(current.purchasePrice), salePrice: Number(current.salePrice) } : null,
+          type: "Model Rate Update", model: product.model, productIds: variantIds, affectedVariantCount: variants.length,
+          oldValues: currentPeriods.length ? { purchasePrice: Number(currentPeriods[0]!.purchasePrice), salePrice: Number(currentPeriods[0]!.salePrice) } : null,
           newValues: { purchasePrice: data.purchasePrice, salePrice: data.salePrice },
           effectiveFrom: data.effectiveFrom,
         },
       },
     });
 
-    return period;
+    return periods[0];
   });
 
   revalidatePath("/products");
   revalidatePath(`/products/${data.productId}/pricing`);
+  for (const variant of variants) revalidatePath(`/products/${variant.id}/pricing`);
   revalidatePath("/purchase"); revalidatePath("/sales/new"); revalidatePath("/inventory"); revalidatePath("/dashboard");
-  return { ok: true as const, data: result };
+  return { ok: true as const, data: result, affectedVariantCount: variants.length };
 }
 
 export async function getCurrentPricing(productId: string) {

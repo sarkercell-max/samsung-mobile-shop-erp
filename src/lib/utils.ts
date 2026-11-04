@@ -19,17 +19,21 @@ export function formatDate(date: Date | string) {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "Asia/Dhaka",
   }).format(new Date(date));
 }
 
 export function formatDateTime(date: Date | string) {
-  return new Intl.DateTimeFormat("en-GB", {
+  const formatted = new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: "Asia/Dhaka",
   }).format(new Date(date));
+  return `${formatted} BDT`;
 }
 
 /** Basic Luhn-style length/format sanity check for a 15-digit IMEI. */
